@@ -1,0 +1,6 @@
+export const locations = [
+  ["Amazonas","Chachapoyas","Chachapoyas"],["Áncash","Huaraz","Huaraz"],["Apurímac","Abancay","Abancay"],["Arequipa","Arequipa","Arequipa"],["Ayacucho","Huamanga","Ayacucho"],["Cajamarca","Cajamarca","Cajamarca"],["Callao","Callao","Callao"],["Cusco","Cusco","Cusco"],["Huancavelica","Huancavelica","Huancavelica"],["Huánuco","Huánuco","Huánuco"],["Ica","Ica","Ica"],["Junín","Huancayo","Huancayo"],["La Libertad","Trujillo","Trujillo"],["Lambayeque","Chiclayo","Chiclayo"],["Lima","Lima","Miraflores"],["Loreto","Maynas","Iquitos"],["Madre de Dios","Tambopata","Tambopata"],["Moquegua","Mariscal Nieto","Moquegua"],["Pasco","Pasco","Chaupimarca"],["Piura","Piura","Piura"],["Puno","San Román","Juliaca"],["San Martín","Moyobamba","Moyobamba"],["Tacna","Tacna","Tacna"],["Tumbes","Tumbes","Tumbes"],["Ucayali","Coronel Portillo","Callería"]
+].map(([department, province, district]) => ({ department, province, district }));
+
+export const provincesFor = (department: string) => [...new Set(locations.filter((item) => item.department === department).map((item) => item.province))];
+export const districtsFor = (department: string, province: string) => locations.filter((item) => item.department === department && item.province === province).map((item) => item.district);
