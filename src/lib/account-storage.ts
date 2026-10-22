@@ -57,6 +57,13 @@ export function saveDemoAccount(email: string, name: string): LocalAccount | nul
   const account = { id: accountId(normalizedEmail), email: normalizedEmail, name: name.trim() || "Emprendedor" };
   localStorage.setItem(DEMO_ACCOUNTS_KEY, JSON.stringify([...accounts, account]));
   localStorage.setItem(ACTIVE_ACCOUNT_KEY, account.id);
+  for (const key of LEGACY_DATA_KEYS) {
+    const guestData = localStorage.getItem(`${key}:guest`);
+    const userKey = `${key}:${account.id}`;
+    if (guestData && !localStorage.getItem(userKey)) {
+      localStorage.setItem(userKey, guestData);
+    }
+  }
   return account;
 }
 
@@ -66,9 +73,24 @@ export function activateDemoAccount(email: string): LocalAccount | null {
   const account = getDemoAccounts().find(item => item.email === normalizedEmail);
   if (!account) return null;
   localStorage.setItem(ACTIVE_ACCOUNT_KEY, account.id);
+  for (const key of LEGACY_DATA_KEYS) {
+    const guestData = localStorage.getItem(`${key}:guest`);
+    const userKey = `${key}:${account.id}`;
+    if (guestData && !localStorage.getItem(userKey)) {
+      localStorage.setItem(userKey, guestData);
+    }
+  }
   return account;
 }
 
 export function activateAccount(email: string) {
-  localStorage.setItem(ACTIVE_ACCOUNT_KEY, accountId(email));
+  const id = accountId(email);
+  localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
+  for (const key of LEGACY_DATA_KEYS) {
+    const guestData = localStorage.getItem(`${key}:guest`);
+    const userKey = `${key}:${id}`;
+    if (guestData && !localStorage.getItem(userKey)) {
+      localStorage.setItem(userKey, guestData);
+    }
+  }
 }

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { categories, requirementById, sourceById } from "@/lib/seed-catalog";
+import { categories, requirementById, rules, sourceById, sources } from "@/lib/seed-catalog";
+import { RuleEngine } from "@/lib/rule-engine";
 import type { AppliedRequirement, BusinessContext, RequirementStatus, TaxRecommendation } from "@/lib/types";
 import { scopedStorageKey } from "@/lib/account-storage";
 import { BusinessSetupAdvicePanel, PracticalGuidePanel, TaxPathPanel } from "@/components/practical-guide-panel";
@@ -56,10 +57,16 @@ export function RouteDashboard(){
     setContext(current);setResults(body.results||[]);setTaxes(body.taxRecommendations||[]);setIsExample(!saved);
     setSelected(body.taxRecommendations?.find((item:TaxRecommendation)=>item.status==="COMPATIBLE")?.code||"NRUS");
     setStatuses(JSON.parse(localStorage.getItem(scopedStorageKey("efp-requirement-statuses"))||"{}"));
-   }).finally(()=>setLoading(false));
+   }).catch(()=>{
+     const localResults=RuleEngine.evaluate(current,rules,sources);
+     const localTaxes=RuleEngine.recommendTax(current,"sunat-regimes","POR_VERIFICAR");
+     setContext(current);setResults(localResults);setTaxes(localTaxes);setIsExample(!saved);
+     setSelected(localTaxes.find(item=>item.status==="COMPATIBLE")?.code||"NRUS");
+     setStatuses(JSON.parse(localStorage.getItem(scopedStorageKey("efp-requirement-statuses"))||"{}"));
+    }).finally(()=>setLoading(false));
  },[]);
  const category=categories.find(item=>item.id===context.sectorId);
- const selectedTax=taxes.find(item=>item.code===selected);
+ const selectedTax=taxes.find(item=>item.code===selected)||taxes[0];
  const preparingToStart=["Solo tengo la idea","Estoy preparando el negocio"].includes(String(context.questionnaire?.P03||""));
  const documentList=useMemo(()=>[...new Set(results.flatMap(item=>requirementById(item.requirementId)?.documents||[]))].sort((a,b)=>a.localeCompare(b,"es")),[results]);
  const documentReferences=useMemo(()=>documentList.map(document=>{const linked=results.map(item=>({item,requirement:requirementById(item.requirementId)})).filter(entry=>entry.requirement?.documents.includes(document));const guide=documentGuides[document];const firstSource=linked[0]?sourceById(linked[0].item.sourceId):undefined;return {document,linked,guide,url:guide?.url||firstSource?.url,link:guide?.link||firstSource?.title||"Consultar fuente oficial"};}),[documentList,results]);
@@ -69,7 +76,7 @@ export function RouteDashboard(){
  const change=(id:string,status:RequirementStatus)=>{const next={...statuses,[id]:status};setStatuses(next);localStorage.setItem(scopedStorageKey("efp-requirement-statuses"),JSON.stringify(next));};
  const today=new Date();const month=today.toLocaleDateString("es-PE",{month:"long",year:"numeric"});const first=(new Date(today.getFullYear(),today.getMonth(),1).getDay()+6)%7;const last=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
  return <main className="min-h-screen bg-[#edf5fb] text-[#071c56]"><div className="mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[250px_1fr]">
-  <aside className="hidden flex-col bg-[#152b46] px-5 py-8 text-white lg:flex"><Link href="/" className="px-5 text-4xl font-black">Crea</Link><nav className="mt-12 space-y-2">{[["Inicio","/"],["Mi empresa","/negocios"],["Mi ruta","#ruta"],["Mis obligaciones","#obligaciones"],["Ayuda","#ayuda"]].map(([title,href],index)=><Link key={title} href={href} onClick={()=>{if(index===2)setTab("Mi ruta");if(index===3)setTab("Mis obligaciones");}} className={"block rounded-xl px-5 py-4 text-lg "+((tab==="Mi ruta"&&index===2||tab==="Mis obligaciones"&&index===3)?"bg-[#1464f6] font-bold":"text-blue-100 hover:bg-white/10")}>{["⌂","▣","☷","▢","?"][index]}　{title}</Link>)}</nav><p className="mt-auto px-5 text-sm leading-6 text-blue-200">Guía orientativa con fuentes oficiales y condiciones de revisión visibles.</p></aside>
+  <aside className="hidden flex-col bg-[#152b46] px-5 py-8 text-white lg:flex"><Link href="/" className="px-5 text-4xl font-black">Crea</Link><nav className="mt-12 space-y-2">{[["Inicio","/"],["Mi espacio","/negocios"],["Mi ruta","#ruta"],["Comparar regímenes","#regimenes"],["Mis obligaciones","#obligaciones"]].map(([title,href],index)=><Link key={title} href={href} onClick={()=>{if(index===2)setTab("Mi ruta");if(index===3)setTab("Comparar regímenes");if(index===4)setTab("Mis obligaciones");}} className={"block rounded-xl px-5 py-4 text-lg "+((tab==="Mi ruta"&&index===2||tab==="Comparar regímenes"&&index===3||tab==="Mis obligaciones"&&index===4)?"bg-[#1464f6] font-bold":"text-blue-100 hover:bg-white/10")}>{["⌂","▣","☷","⚖","▢"][index]}　{title}</Link>)}</nav><p className="mt-auto px-5 text-sm leading-6 text-blue-200">Guía orientativa con fuentes oficiales y condiciones de revisión visibles.</p></aside>
   <div className="min-w-0"><header className="flex items-center justify-between border-b border-blue-100 bg-white px-6 py-5 sm:px-10"><Link href="/" className="text-2xl font-black text-[#0a318c] lg:hidden">Crea</Link><p className="hidden text-sm font-semibold text-slate-500 lg:block">Tu espacio de emprendimiento</p><Link href="/negocios/nuevo" className="rounded-xl border border-blue-200 px-4 py-2 text-sm font-bold text-[#1464f6]">Nueva evaluación</Link></header>
   <div className="mx-auto max-w-6xl px-5 py-8 sm:px-10"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold uppercase tracking-[.14em] text-[#1464f6]">{category?.name||"Mi negocio"} · {[context.district,context.department].filter(Boolean).join(", ")}</p><h1 className="mt-2 text-3xl font-black sm:text-5xl">{tab==="Mi ruta"?"Mi ruta de formalización":tab==="Comparar regímenes"?"Compara tus opciones tributarias":"Mis obligaciones"}</h1><p className="mt-3 text-lg text-slate-600">{tab==="Mi ruta"?"Sigue los pasos que se activaron con tus respuestas. Abre cada uno para entenderlo.":tab==="Comparar regímenes"?"Explora las condiciones de cada régimen antes de decidir.":"Consulta tus tareas y agrega fechas cuando la entidad competente las confirme."}</p></div><span className="rounded-xl bg-white px-4 py-2 text-sm font-bold shadow-sm">{context.businessName}</span></div>
    {isExample&&<p className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm">Esta es una ruta de ejemplo. <Link href="/negocios/nuevo" className="font-bold text-[#1464f6] underline">Responde el cuestionario</Link> para ver tu propio escenario.</p>}
