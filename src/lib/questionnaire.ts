@@ -119,6 +119,30 @@ const sector: Record<string, Question[]> = {
     ...[["CO02","¿Tendrás trabajadores en obra?"],["CO03","¿Harás trabajos en altura?"],["CO04","¿Usarás maquinaria pesada?"]].map(([id,title])=>({id,title,options:yes})),
     {id:"CO05",title:"¿Quiénes serán tus clientes?",options:business(["Personas","Empresas","Estado","Mixto"])},
   ],
+  Tecnología:[
+    {id:"TE01",title:"¿Qué solución tecnológica ofrecerás?",options:business(["Desarrollo de software a medida","Páginas web o comercio electrónico","Soporte técnico y redes","Consultoría TI","Venta de licencias o SaaS","Otro"])},
+    ...[["TE02","¿Almacenarás datos personales de usuarios o clientes?"],["TE03","¿Venderás equipos físicos además de software?"]].map(([id,title])=>({id,title,options:yes})),
+  ],
+  Turismo:[
+    {id:"TU01",title:"¿Cómo operarás en turismo?",options:business(["Agencia de viajes (reservo servicios de terceros)","Operador turístico (organizo mis propios tours)","Ambos (agencia y operador)","Guía oficial de turismo","Otro"])},
+    ...[["TU02","¿Atenderás turistas en una oficina física?"],["TU03","¿Incluirás transporte turístico propio?"],["TU04","¿Ofrecerás actividades de turismo de aventura?"]].map(([id,title])=>({id,title,options:yes})),
+  ],
+  Belleza:[
+    {id:"BE01",title:"¿Qué servicios de cuidado personal brindarás?",options:business(["Peluquería y barbería","Manicure y pedicure","Cosmetología y estética facial","Spa y masajes","Venta de productos cosméticos","Otro"])},
+    ...[["BE02","¿Aplicarás productos cosméticos o químicos en clientes?"],["BE03","¿Esterilizarás herramientas o instrumental de trabajo?"]].map(([id,title])=>({id,title,options:yes})),
+  ],
+  Importación:[
+    {id:"IM01",title:"¿Qué tipo de bienes importarás?",options:business(["Ropa, calzado y accesorios","Equipos electrónicos y tecnología","Alimentos o bebidas","Cosméticos, medicamentos o insumos médicos","Repuestos y maquinaria","Otro"])},
+    ...[["IM02","¿Tus importaciones superarán los US$ 2,000 por envío (Importa Fácil)?"],["IM03","¿Importarás mercancía restringida que requiera permiso de DIGESA, DIGEMID o MTC?"]].map(([id,title])=>({id,title,options:yes})),
+  ],
+  Exportación:[
+    {id:"EX01",title:"¿Qué productos o servicios exportarás?",options:business(["Productos agrícolas o agroindustriales","Artesanías y textiles","Alimentos procesados","Servicios digitales o software","Otro"])},
+    ...[["EX02","¿Realizarás envíos comerciales frecuentes al exterior?"],["EX03","¿Necesitarás certificado de origen o permisos sanitarios (SENASA/DIGESA)?"]].map(([id,title])=>({id,title,options:yes})),
+  ],
+  Entretenimiento:[
+    {id:"EN01",title:"¿Qué actividad recreativa o cultural desarrollarás?",options:business(["Organización de eventos sociales o corporativos","Espectáculos públicos en vivo","Producción audiovisual o musical","Juegos recreativos o salón de eventos","Otro"])},
+    ...[["EN02","¿Realizarás eventos con gran aforo de público?"],["EN03","¿Venderás alimentos o bebidas durante los eventos?"]].map(([id,title])=>({id,title,options:yes})),
+  ],
 };
 
 export function visibleQuestions(section: number, answers: Answers): Question[] {

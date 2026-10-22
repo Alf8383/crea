@@ -50,20 +50,22 @@ function toContext(a: Answers): BusinessContext {
     ? activities.find(item=>item.id==="agencia")
     : tourismOperator
     ? activities.find(item=>item.id==="operador-turistico")
-    : activities.find(item=>item.sectorId===sectorId && (normalizeActivity(item.name).includes(normalizedDescription)||normalizedDescription.includes(normalizeActivity(item.name))));
+    : activities.find(item=>item.sectorId===sectorId && (normalizeActivity(item.name).includes(normalizedDescription)||normalizedDescription.includes(normalizeActivity(item.name))))
+      || (sectorId !== "otro" ? activities.find(item=>item.sectorId===sectorId) : undefined);
   const invoice = answer(a,"P23");
+  const customerAnswer = answer(a,"P22");
   return {
     questionnaire:a,businessName:description || answer(a,"P01.1") || "Mi negocio",purpose:answer(a,"P03").includes("formalizad") ? "revisar" : answer(a,"P03").includes("ventas") || answer(a,"P03").includes("opero") ? "formalizar" : "crear",
     sectorId,activityId:matched?.id || "",otherActivity:description,department:answer(a,"P04"),province:answer(a,"P05")==="No encuentro mi provincia"?answer(a,"P05_TEXT"):answer(a,"P05"),district:answer(a,"P06")==="No encuentro mi distrito"?answer(a,"P06_TEXT"):answer(a,"P06"),
     legalPerson:answer(a,"P09")==="Persona natural"?"natural":answer(a,"P09")==="Persona jurídica / empresa"?"juridica":"aun-no-se",
     hasPartners:["2 personas","3 personas","4 o más"].includes(answer(a,"P07")),partnerCount:answer(a,"P07")==="2 personas"?2:answer(a,"P07")==="3 personas"?3:answer(a,"P07")==="4 o más"?4:1,
-    hasPhysicalLocation:yes(a,"P10"),servesPublic:yes(a,"P12"),hasEmployees:yes(a,"P28"),employeeCount:number(a,"P29"),employeeCountPerShift:number(a,"P29.1"),
-    sellsOnline:yes(a,"P25"),preparesFood:yes(a,"R01") || yes(a,"M07") || yes(a,"H03"),importsGoods:yes(a,"C03"),exportsGoods:yes(a,"P27") || yes(a,"A06"),
-    providesRegulatedService:false,customerType:answer(a,"P22")==="Personas"?"personas":answer(a,"P22")==="Empresas"?"empresas":answer(a,"P22")==="Personas y empresas" || answer(a,"P22")==="Personas, empresas y Estado"?"ambos":"aun-no-se",
+    hasPhysicalLocation:yes(a,"P10"),servesPublic:yes(a,"P12") || answer(a,"P12")==="Algunas veces",hasEmployees:yes(a,"P28"),employeeCount:number(a,"P29"),employeeCountPerShift:number(a,"P29.1"),
+    sellsOnline:yes(a,"P25"),preparesFood:yes(a,"R01") || yes(a,"M07") || yes(a,"H03") || yes(a,"EN03"),importsGoods:sectorId==="importacion" || yes(a,"C03"),exportsGoods:sectorId==="exportacion" || yes(a,"P27") || yes(a,"A06"),
+    providesRegulatedService:false,customerType:customerAnswer==="Personas"?"personas":customerAnswer==="Empresas" || customerAnswer==="Estado"?"empresas":customerAnswer==="Personas y empresas" || customerAnswer==="Personas, empresas y Estado"?"ambos":"aun-no-se",
     monthlyRevenue:answer(a,"P20").startsWith("monto:")?Number(answer(a,"P20").slice(6))||0:0,
     monthlyPurchases:number(a,"TAX_PURCHASES"),annualPurchases:number(a,"TAX_PURCHASES")*12,fixedAssets:number(a,"TAX_ASSETS"),
-    needsInvoices:invoice.startsWith("Sí")?true:invoice.startsWith("No, venderé")?false:null,
-    hasMultipleLocations:false,foreignSourceIncome:false,collectsPersonalData:false,
+    needsInvoices:invoice.startsWith("Sí") || invoice==="Probablemente muy pocas veces"?true:invoice.startsWith("No, venderé")?false:null,
+    hasMultipleLocations:false,foreignSourceIncome:false,collectsPersonalData:yes(a,"TE02"),
   };
 }
 
@@ -142,7 +144,17 @@ function QuestionInput({question,data,setValue}:{question:Question;data:Answers;
       <p className="text-sm text-slate-500">El catálogo de localidades está en ampliación. Si no encuentras tu provincia o distrito, puedes escribirlo aquí.</p>
     </div>;
   }
-  if(question.kind==="text" || question.kind==="number") return <input autoFocus type={question.kind==="number"?"number":"text"} min={question.kind==="number"?0:undefined} value={typeof value==="string"?value:""} onChange={event=>setValue(question.id,event.target.value)} placeholder={question.kind==="number"?"Escribe una cantidad":"Escribe aquí con tus palabras"} className={inputClass}/>;
+  if(question.kind==="text" || question.kind==="number"){
+    const isTaxAmount=question.id==="TAX_PURCHASES"||question.id==="TAX_ASSETS";
+    const presets=question.id==="TAX_PURCHASES"?[["0","S/ 0 (Sin compras de mercadería)"],["500","S/ 500"],["1500","S/ 1,500"],["3500","S/ 3,500"],["6000","S/ 6,000"],["10000","S/ 10,000"]]:question.id==="TAX_ASSETS"?[["0","S/ 0 (Sin equipos ni maquinaria)"],["1500","S/ 1,500"],["5000","S/ 5,000"],["15000","S/ 15,000"],["50000","S/ 50,000"],["100000","S/ 100,000"]]:[];
+    return <div className="space-y-4">
+      <div className="relative">
+        {isTaxAmount&&<span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-400">S/</span>}
+        <input autoFocus type={question.kind==="number"?"number":"text"} min={question.kind==="number"?0:undefined} value={typeof value==="string"?value:""} onChange={event=>setValue(question.id,event.target.value)} placeholder={isTaxAmount?"0.00":question.kind==="number"?"Escribe una cantidad":"Escribe aquí con tus palabras"} className={inputClass+(isTaxAmount?" pl-12":"")}/>
+      </div>
+      {presets.length>0&&<div className="space-y-2"><p className="text-sm font-semibold text-slate-500">O selecciona un monto aproximado rápido:</p><div className="flex flex-wrap gap-2">{presets.map(([amount,label])=><button type="button" key={amount} onClick={()=>setValue(question.id,amount)} className={"rounded-xl border px-4 py-2.5 text-sm font-semibold transition hover:border-blue-400 "+(value===amount?selected:"border-slate-200 bg-white text-[#10295b]")}>{label}</button>)}</div></div>}
+    </div>;
+  }
   if(question.kind==="department" || question.kind==="province" || question.kind==="district"){
     const list=question.kind==="department"?locations.map(item=>item.department):question.kind==="province"?provincesFor(answer(data,"P04")):districtsFor(answer(data,"P04"),answer(data,"P05"));
     const options=[...new Set(list)];

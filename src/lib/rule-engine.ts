@@ -69,14 +69,14 @@ export class RuleEngine {
     if(context.sectorId==="turismo"&&!activityKnown)rerMissing.push("Confirma el CIIU exacto y revisa las exclusiones aplicables a esa actividad.");
     const rmtFailures=exactSales&&annualIncome>RMT_INCOME_LIMIT_2026?["Las ventas estimadas superan 1,700 UIT con el valor de UIT de 2026."]:[];
     const rmtMissing=[...basics,...incomeMissing];
-    if(answers)rmtMissing.push("Confirma si existe vinculación empresarial o una sucursal de empresa extranjera: estas exclusiones no se preguntan en este test.");
+    if(!activityKnown)rmtMissing.push("Describe la actividad para revisar posibles exclusiones o tratamientos especiales.");
     if(answers?.P01==="Educación"||answers?.P01==="Salud")rmtMissing.push("Esta actividad necesita revisar exclusiones o tratamientos particulares.");
     const rgMissing=[...basics,...incomeMissing];
     if(!activityKnown)rgMissing.push("Describe la actividad para comprobar si requiere una revisión sectorial.");
     return [
       result("NRUS","Nuevo RUS",nrusFailures,nrusMissing,["Las condiciones generales declaradas están dentro de los límites evaluados. Confirma las exclusiones de actividad."]),
       result("RER","Régimen Especial de Renta",rerFailures,rerMissing,["Las condiciones generales declaradas están dentro de los límites evaluados. Confirma las exclusiones de actividad."]),
-      result("RMT","Régimen MYPE Tributario",rmtFailures,rmtMissing,["Las ventas estimadas no superan el límite general de 1,700 UIT de 2026."]),
+      result("RMT","Régimen MYPE Tributario",rmtFailures,rmtMissing,["Las ventas estimadas no superan el límite general de 1,700 UIT de 2026.","Confirma que no exista vinculación empresarial que supere el límite ni sea sucursal de empresa extranjera."]),
       result("RG","Régimen General",[],rgMissing,["La comparación general de SUNAT no establece un tope de ingresos para este régimen."]),
     ];
   }
