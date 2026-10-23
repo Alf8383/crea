@@ -1,45 +1,59 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/app-header";
-import { BusinessSetupAdvicePanel, LegalFormRecommendationPanel, PracticalGuidePanel, TaxPathPanel } from "@/components/practical-guide-panel";
-import { scopedStorageKey } from "@/lib/account-storage";
-import { DEMO_PRESETS } from "@/lib/demo-presets";
+import { PracticalGuidePanel } from "@/components/practical-guide-panel";
+import { ACTIVE_ACCOUNT_KEY, getDemoAccounts, scopedStorageKey } from "@/lib/account-storage";
+import { DEMO_PRESETS, type DemoPreset } from "@/lib/demo-presets";
 import { getTaxPath } from "@/lib/practical-guides";
 import { RuleEngine } from "@/lib/rule-engine";
-import { categories, requirementById, rules, sourceById, sources } from "@/lib/seed-catalog";
+import { activities, categories, requirementById, rules, sourceById, sources } from "@/lib/seed-catalog";
 import type { AppliedRequirement, BusinessContext, RequirementStatus, TaxRecommendation } from "@/lib/types";
 
 const defaultDemoContext: BusinessContext = DEMO_PRESETS[0].context;
 
 const taxLabel = {
-  COMPATIBLE: "Cumple lo evaluado",
-  INCOMPATIBLE: "No compatible",
-  INFORMACION_INSUFICIENTE: "Por verificar",
+  COMPATIBLE: "Compatible",
+  INCOMPATIBLE: "No aplicable",
+  INFORMACION_INSUFICIENTE: "Faltan datos",
 } as const;
 
 const taxBadgeStyle = {
-  COMPATIBLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  INCOMPATIBLE: "bg-rose-50 text-rose-700 border-rose-200",
-  INFORMACION_INSUFICIENTE: "bg-amber-50 text-amber-800 border-amber-200",
+  COMPATIBLE: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  INCOMPATIBLE: "bg-rose-100 text-rose-700 border-rose-200",
+  INFORMACION_INSUFICIENTE: "bg-amber-100 text-amber-800 border-amber-200",
 } as const;
 
 const tabs = [
-  { id: "Mi ruta", label: "1. Ruta de formalización" },
-  { id: "Comparar regímenes", label: "2. Regímenes y Simulador SUNAT" },
-  { id: "Herramientas prácticas", label: "3. Herramientas prácticas" },
-  { id: "Mis obligaciones", label: "4. Cronograma SUNAT" },
+  { id: "Comparar regímenes", icon: "⚖️", label: "Diagnóstico Tributario y Simulador" },
+  { id: "Mi ruta", icon: "🗺️", label: "Ruta de Formalización Paso a Paso" },
+  { id: "Herramientas prácticas", icon: "🧰", label: "Herramientas (Comprobantes, Empresa y RUC)" },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
 
-function TaxPaymentSimulator({ context }: { context: BusinessContext }) {
+function VisualTaxSimulator({
+  context,
+  taxes,
+  selectedCode,
+  onSelectCode,
+}: {
+  context: BusinessContext;
+  taxes: TaxRecommendation[];
+  selectedCode: TaxRecommendation["code"];
+  onSelectCode: (code: TaxRecommendation["code"]) => void;
+}) {
   const [customSales, setCustomSales] = useState<number | null>(null);
   const [customPurchases, setCustomPurchases] = useState<number | null>(null);
+  const [showFullTable, setShowFullTable] = useState(false);
+
   const sales = customSales ?? (context.monthlyRevenue > 0 ? context.monthlyRevenue : 4200);
   const purchases = customPurchases ?? (context.monthlyPurchases > 0 ? context.monthlyPurchases : 1800);
   const fmt = (n: number) =>
+    new Intl.NumberFormat("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.max(0, Math.round(n)));
+  const fmtDec = (n: number) =>
     new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.max(0, n));
 
   const netSales = sales / 1.18;
@@ -55,178 +69,38 @@ function TaxPaymentSimulator({ context }: { context: BusinessContext }) {
   const rmtIncomeTax = netSales * (sales * 12 <= 300 * 5500 ? 0.01 : 0.015);
   const rgIncomeTax = netSales * 0.015;
 
-  return (
-    <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs" aria-labelledby="tax-sim-title">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Simulador financiero mensual</span>
-          <h2 id="tax-sim-title" className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
-            Calcula tu pago mensual aproximado en cada régimen
-          </h2>
-          <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-            Desliza o edita tus ventas y compras con factura para observar el efecto del crédito fiscal del IGV (18%) y el Impuesto a la Renta.
-          </p>
-        </div>
-        {(customSales !== null || customPurchases !== null) && (
-          <button
-            type="button"
-            onClick={() => {
-              setCustomSales(null);
-              setCustomPurchases(null);
-            }}
-            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
-          >
-            Restaurar valores iniciales
-          </button>
-        )}
-      </div>
+  const regimeSimData: Record<
+    TaxRecommendation["code"],
+    { monthlyTotal: number; quotaText: string; capLabel: string; capPercent: number }
+  > = {
+    NRUS: {
+      monthlyTotal: nrusQuota,
+      quotaText: nrusAllowed ? `S/ ${nrusQuota} fijo/mes` : "Excluido",
+      capLabel: `Tope mensual: S/ 8,000`,
+      capPercent: Math.min(100, Math.round((Math.max(sales, purchases) / 8000) * 100)),
+    },
+    RER: {
+      monthlyTotal: rerIncomeTax + igvPayable,
+      quotaText: rerAllowed ? `S/ ${fmt(rerIncomeTax + igvPayable)} / mes` : "Supera tope",
+      capLabel: `Tope anual: S/ 525,000`,
+      capPercent: Math.min(100, Math.round(((sales * 12) / 525000) * 100)),
+    },
+    RMT: {
+      monthlyTotal: rmtIncomeTax + igvPayable,
+      quotaText: `S/ ${fmt(rmtIncomeTax + igvPayable)} / mes`,
+      capLabel: `Tope anual: 1,700 UIT`,
+      capPercent: Math.min(100, Math.round(((sales * 12) / (1700 * 5500)) * 100)),
+    },
+    RG: {
+      monthlyTotal: rgIncomeTax + igvPayable,
+      quotaText: `S/ ${fmt(rgIncomeTax + igvPayable)} / mes`,
+      capLabel: `Sin límite de ingresos`,
+      capPercent: 25,
+    },
+  };
 
-      <div className="mt-5 grid gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 sm:grid-cols-2">
-        <label className="block">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700">Ventas mensuales estimadas (S/)</span>
-            <span className="text-xs font-semibold text-slate-500">Anual: S/ {fmt(sales * 12)}</span>
-          </div>
-          <input
-            type="number"
-            min={0}
-            step={100}
-            value={sales}
-            onChange={(e) => setCustomSales(Math.max(0, Number(e.target.value) || 0))}
-            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base font-extrabold text-slate-900 outline-none focus:border-blue-600"
-          />
-          <input
-            type="range"
-            min={500}
-            max={50000}
-            step={500}
-            value={Math.min(50000, sales)}
-            onChange={(e) => setCustomSales(Number(e.target.value))}
-            className="mt-2 w-full cursor-pointer accent-blue-600"
-          />
-        </label>
+  const selectedTax = taxes.find((t) => t.code === selectedCode) || taxes[0];
 
-        <label className="block">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700">Compras mensuales con factura (S/)</span>
-            <span className="text-xs font-bold text-emerald-700">Crédito fiscal IGV: S/ {fmt(igvPurchases)}</span>
-          </div>
-          <input
-            type="number"
-            min={0}
-            step={100}
-            value={purchases}
-            onChange={(e) => setCustomPurchases(Math.max(0, Number(e.target.value) || 0))}
-            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base font-extrabold text-slate-900 outline-none focus:border-blue-600"
-          />
-          <input
-            type="range"
-            min={0}
-            max={40000}
-            step={250}
-            value={Math.min(40000, purchases)}
-            onChange={(e) => setCustomPurchases(Number(e.target.value))}
-            className="mt-2 w-full cursor-pointer accent-blue-600"
-          />
-        </label>
-      </div>
-
-      <div className="mt-5 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        <article
-          className={
-            "rounded-2xl border p-4 " +
-            (nrusAllowed ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 bg-slate-50/60")
-          }
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-extrabold text-slate-900">Nuevo RUS</span>
-            <span
-              className={
-                "rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
-                (nrusAllowed ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-700")
-              }
-            >
-              {nrusAllowed ? (nrusQuota === 20 ? "Categoría 1" : "Categoría 2") : "No aplicable"}
-            </span>
-          </div>
-          {nrusAllowed ? (
-            <>
-              <p className="mt-3 text-2xl font-extrabold text-blue-600">S/ {fmt(nrusQuota)}</p>
-              <p className="mt-0.5 text-[11px] font-semibold text-slate-500">Cuota fija única al mes</p>
-              <p className="mt-2.5 text-xs leading-5 text-slate-600">
-                Hasta S/ 5,000 pagas S/ 20; de S/ 5,001 a S/ 8,000 pagas S/ 50. Sin libros contables.
-              </p>
-            </>
-          ) : (
-            <p className="mt-3 text-xs leading-5 text-rose-700">
-              {sales > 8000 || purchases > 8000
-                ? "Supera el límite mensual de S/ 8,000 del Nuevo RUS."
-                : context.legalPerson === "juridica"
-                ? "No aplica a personas jurídicas."
-                : "No aplica si necesitas emitir facturas."}
-            </p>
-          )}
-        </article>
-
-        <article
-          className={
-            "rounded-2xl border p-4 " +
-            (rerAllowed ? "border-blue-200 bg-blue-50/20" : "border-slate-200 bg-slate-50/60")
-          }
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-extrabold text-slate-900">RER</span>
-            <span
-              className={
-                "rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
-                (rerAllowed ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700")
-              }
-            >
-              {rerAllowed ? "1.5% Renta + IGV" : "Supera tope"}
-            </span>
-          </div>
-          <p className="mt-3 text-2xl font-extrabold text-blue-600">S/ {fmt(rerIncomeTax + igvPayable)}</p>
-          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-            Renta: S/ {fmt(rerIncomeTax)} · IGV: S/ {fmt(igvPayable)}
-          </p>
-          <p className="mt-2.5 text-xs leading-5 text-slate-600">
-            Sin Declaración Anual. Tope anual de S/ 525,000 y máx. 10 trabajadores por turno.
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-blue-200 bg-blue-50/20 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-extrabold text-slate-900">RMT (MYPE)</span>
-            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-700">1.0% Renta + IGV</span>
-          </div>
-          <p className="mt-3 text-2xl font-extrabold text-blue-600">S/ {fmt(rmtIncomeTax + igvPayable)}</p>
-          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-            Renta: S/ {fmt(rmtIncomeTax)} · IGV: S/ {fmt(igvPayable)}
-          </p>
-          <p className="mt-2.5 text-xs leading-5 text-slate-600">
-            Admite cualquier giro y regulariza Renta Anual sobre utilidad neta (10% primeras 15 UIT).
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-extrabold text-slate-900">Régimen General</span>
-            <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">1.5% Renta + IGV</span>
-          </div>
-          <p className="mt-3 text-2xl font-extrabold text-slate-900">S/ {fmt(rgIncomeTax + igvPayable)}</p>
-          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-            Renta: S/ {fmt(rgIncomeTax)} · IGV: S/ {fmt(igvPayable)}
-          </p>
-          <p className="mt-2.5 text-xs leading-5 text-slate-600">
-            Sin tope de ingresos ni compras. Renta Anual del 29.5% sobre la utilidad neta.
-          </p>
-        </article>
-      </div>
-    </section>
-  );
-}
-
-function TaxComparisonTable() {
   const rows = [
     ["¿Quiénes pueden acogerse?", "Solo Persona Natural", "Persona Natural o Jurídica", "Persona Natural o Jurídica", "Persona Natural o Jurídica"],
     ["Límite de ingresos anuales", "Hasta S/ 96,000 (S/ 8,000/mes)", "Hasta S/ 525,000 al año", "Hasta 1,700 UIT al año", "Sin límite"],
@@ -234,39 +108,259 @@ function TaxComparisonTable() {
     ["Comprobantes permitidos", "Boleta de venta y tickets (No Factura)", "Factura, boleta y demás permitidos", "Factura, boleta y demás permitidos", "Factura, boleta y demás permitidos"],
     ["Pago mensual", "Cuota fija: S/ 20 o S/ 50", "Renta 1.5% + IGV 18%", "Renta 1% (hasta 300 UIT) + IGV 18%", "Renta 1.5% o coef. + IGV 18%"],
     ["Declaración Anual", "No presenta", "No presenta", "Sí (10% hasta 15 UIT; 29.5% exceso)", "Sí (29.5% sobre utilidad)"],
-    ["Límite de activos fijos", "Hasta S/ 70,000", "Hasta S/ 126,000", "Sin límite", "Sin límite"],
-    ["Trabajadores", "Sin límite fijo", "Máx. 10 por turno", "Sin límite", "Sin límite"],
     ["Libros contables", "Ninguno", "Registro de Compras y Ventas", "Según tramo de ingresos", "Según tramo de ingresos"],
   ];
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-      <h2 className="text-xl font-extrabold text-slate-900">Cuadro comparativo resumen SUNAT</h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[700px] border-collapse text-left text-xs sm:text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-800">
-              <th className="p-3 font-bold">Criterio</th>
-              <th className="p-3 font-bold">Nuevo RUS</th>
-              <th className="p-3 font-bold">RER</th>
-              <th className="p-3 font-bold">RMT (MYPE)</th>
-              <th className="p-3 font-bold">Régimen General</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map(([criterion, nrus, rer, rmt, rg]) => (
-              <tr key={criterion} className="hover:bg-slate-50/80">
-                <td className="p-3 font-bold text-slate-900">{criterion}</td>
-                <td className="p-3 text-slate-600">{nrus}</td>
-                <td className="p-3 text-slate-600">{rer}</td>
-                <td className="p-3 text-slate-600">{rmt}</td>
-                <td className="p-3 text-slate-600">{rg}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <div className="space-y-6">
+      {/* 4 Visual Regime Cards + Selected Rule Inspector */}
+      <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+              Comparativa visual de regímenes SUNAT
+            </span>
+            <h2 className="mt-0.5 text-xl font-extrabold text-slate-900 sm:text-2xl">
+              Haz clic en cada régimen para revisar sus condiciones
+            </h2>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+          {taxes.map((tax) => {
+            const sim = regimeSimData[tax.code];
+            const isSelected = selectedCode === tax.code;
+            const isCompatible = tax.status === "COMPATIBLE";
+            return (
+              <button
+                key={tax.code}
+                type="button"
+                onClick={() => onSelectCode(tax.code)}
+                className={
+                  "flex flex-col justify-between rounded-2xl border p-4 text-left transition " +
+                  (isSelected
+                    ? "border-blue-600 bg-blue-50/40 ring-2 ring-blue-600/15"
+                    : "border-slate-200 bg-white hover:border-blue-300")
+                }
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-lg font-extrabold text-slate-900">{tax.code}</span>
+                    <span className={"rounded-full border px-2.5 py-0.5 text-[11px] font-bold " + taxBadgeStyle[tax.status]}>
+                      {taxLabel[tax.status]}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-slate-600">{tax.title}</p>
+
+                  <div className="mt-3 rounded-xl bg-slate-50 p-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Pago mensual estimado</span>
+                    <span className={"text-base font-extrabold " + (isCompatible ? "text-blue-600" : "text-slate-400")}>
+                      {sim.quotaText}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Visual Limit Meter */}
+                <div className="mt-3 pt-2">
+                  <div className="flex justify-between text-[10px] font-semibold text-slate-500">
+                    <span>{sim.capLabel}</span>
+                    <span>{sim.capPercent}%</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={
+                        "h-full rounded-full transition-all " +
+                        (sim.capPercent >= 100 && tax.code !== "RG"
+                          ? "bg-rose-500"
+                          : isCompatible
+                          ? "bg-emerald-500"
+                          : "bg-amber-400")
+                      }
+                      style={{ width: `${sim.capPercent}%` }}
+                    />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Regime Explanation Bar */}
+        {selectedTax && (
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-900 p-5 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-black">{selectedTax.code}</span>
+                <div>
+                  <h3 className="text-base font-extrabold">{selectedTax.title}</h3>
+                  <p className="text-xs text-slate-300">Evaluación del motor de reglas para tu negocio</p>
+                </div>
+              </div>
+              {sourceById(selectedTax.sourceId) && (
+                <a
+                  href={sourceById(selectedTax.sourceId)?.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-white/10 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/20"
+                >
+                  Consultar fuente oficial SUNAT ↗
+                </a>
+              )}
+            </div>
+
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              {selectedTax.reasons.map((reason) => (
+                <li key={reason} className="flex items-start gap-2 rounded-xl bg-white/5 p-3 text-xs leading-5 text-slate-200">
+                  <span className="font-bold text-blue-400">✓</span>
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      {/* Interactive Financial Sliders + Visual Breakdown */}
+      <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Simulador dinámico en soles</span>
+            <h2 className="mt-0.5 text-xl font-extrabold text-slate-900">
+               Ajusta tus ventas y compras para simular tu impuesto mensual
+            </h2>
+          </div>
+          {(customSales !== null || customPurchases !== null) && (
+            <button
+              type="button"
+              onClick={() => {
+                setCustomSales(null);
+                setCustomPurchases(null);
+              }}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+            >
+              Restaurar montos de mi cuestionario
+            </button>
+          )}
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+          {/* Sliders */}
+          <div className="space-y-4 rounded-2xl bg-slate-50 p-5">
+            <div>
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-700">Ventas mensuales estimadas</span>
+                <span className="text-base font-extrabold text-blue-600">S/ {fmt(sales)} / mes</span>
+              </div>
+              <input
+                type="range"
+                min={500}
+                max={50000}
+                step={500}
+                value={Math.min(50000, sales)}
+                onChange={(e) => setCustomSales(Number(e.target.value))}
+                className="mt-2 w-full cursor-pointer accent-blue-600"
+              />
+              <div className="mt-1 flex justify-between text-[11px] text-slate-400">
+                <span>S/ 500</span>
+                <span>Anual: S/ {fmt(sales * 12)}</span>
+                <span>S/ 50,000</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-700">Compras mensuales con factura</span>
+                <span className="text-base font-extrabold text-emerald-700">S/ {fmt(purchases)} / mes</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={40000}
+                step={250}
+                value={Math.min(40000, purchases)}
+                onChange={(e) => setCustomPurchases(Number(e.target.value))}
+                className="mt-2 w-full cursor-pointer accent-blue-600"
+              />
+              <div className="mt-1 flex justify-between text-[11px] text-slate-400">
+                <span>S/ 0</span>
+                <span>Crédito fiscal IGV: S/ {fmtDec(igvPurchases)}</span>
+                <span>S/ 40,000</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Visual IGV & Renta Breakdown Box */}
+          <div className="flex flex-col justify-between rounded-2xl border border-blue-100 bg-blue-50/40 p-5">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                ¿Cómo se calcula el IGV y la Renta mensual? (RER / RMT / RG)
+              </span>
+              <div className="mt-3 space-y-2 text-xs">
+                <div className="flex justify-between rounded-lg bg-white p-2.5">
+                  <span className="text-slate-600">1. IGV de tus ventas (18% incluido):</span>
+                  <b className="text-slate-900">+ S/ {fmtDec(igvSales)}</b>
+                </div>
+                <div className="flex justify-between rounded-lg bg-white p-2.5">
+                  <span className="text-slate-600">2. Menos IGV de tus compras con factura:</span>
+                  <b className="text-emerald-700">− S/ {fmtDec(igvPurchases)}</b>
+                </div>
+                <div className="flex justify-between rounded-lg border border-blue-200 bg-white p-2.5">
+                  <span className="font-bold text-slate-800">= IGV neto a pagar a SUNAT:</span>
+                  <b className="text-blue-600">S/ {fmtDec(igvPayable)}</b>
+                </div>
+                <div className="flex justify-between rounded-lg bg-white p-2.5">
+                  <span className="text-slate-600">+ Pago a cuenta de Renta (1% RMT / 1.5% RER):</span>
+                  <b className="text-slate-900">
+                    S/ {fmtDec(rmtIncomeTax)} a S/ {fmtDec(rerIncomeTax)}
+                  </b>
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-500">
+              * En el <b>Nuevo RUS</b> no se hace este cálculo: solo pagas una cuota fija de <b>S/ 20</b> o <b>S/ 50</b> si no superas S/ 8,000.
+            </p>
+          </div>
+        </div>
+
+        {/* Toggleable Comparison Table */}
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            onClick={() => setShowFullTable((v) => !v)}
+            className="text-xs font-bold text-blue-600 hover:underline"
+          >
+            {showFullTable ? "Ocultar tabla comparativa completa ↑" : "Ver tabla comparativa completa de los 4 regímenes ↓"}
+          </button>
+
+          {showFullTable && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[680px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-800">
+                    <th className="p-3 font-bold">Criterio</th>
+                    <th className="p-3 font-bold">Nuevo RUS</th>
+                    <th className="p-3 font-bold">RER</th>
+                    <th className="p-3 font-bold">RMT (MYPE)</th>
+                    <th className="p-3 font-bold">Régimen General</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map(([criterion, nrus, rer, rmt, rg]) => (
+                    <tr key={criterion} className="hover:bg-slate-50/80">
+                      <td className="p-3 font-bold text-slate-900">{criterion}</td>
+                      <td className="p-3 text-slate-600">{nrus}</td>
+                      <td className="p-3 text-slate-600">{rer}</td>
+                      <td className="p-3 text-slate-600">{rmt}</td>
+                      <td className="p-3 text-slate-600">{rg}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -275,86 +369,99 @@ function PracticalToolsTab({ context }: { context: BusinessContext }) {
     context.customerType === "empresas" ? "empresa" : "persona",
   );
   const [saleAmount, setSaleAmount] = useState<number>(850);
-  const [entityType, setEntityType] = useState<"natural" | "eirl" | "srl" | "sac">(
-    context.legalPerson === "juridica" ? "sac" : "natural",
-  );
-  const [areaSize, setAreaSize] = useState<"menor100" | "100a500" | "mayor500">("menor100");
-  const [hasHighRiskFactor, setHasHighRiskFactor] = useState<boolean>(false);
+  const [ownerCount, setOwnerCount] = useState<"1" | "socios">(context.hasPartners ? "socios" : "1");
+  const [separateAssets, setSeparateAssets] = useState<boolean>(context.legalPerson === "juridica");
+  const [rucDigit, setRucDigit] = useState<string>("0");
 
-  const entityDetails = {
-    natural: {
-      title: "Persona Natural con Negocio (RUC 10)",
-      owners: "1 sola persona (tú mismo)",
-      liability: "Ilimitada: respondes con tu patrimonio personal.",
-      constitution: "Trámite digital gratuito de RUC 10 en SUNAT Virtual / App Personas.",
-      regimes: "Nuevo RUS, RER, RMT o Régimen General.",
-      idealFor: "Bodegas, cafeterías, oficios y comercios pequeños que buscan iniciar rápido y sin costos notariales.",
-    },
-    eirl: {
-      title: "E.I.R.L. (Empresa Individual de Responsabilidad Limitada)",
-      owners: "1 solo titular (sin socios)",
-      liability: "Limitada al patrimonio aportado a la empresa.",
-      constitution: "SID-SUNARP + Notaría + Activación de RUC 20 en SUNAT.",
-      regimes: "RER, RMT o Régimen General (No aplica Nuevo RUS).",
-      idealFor: "Emprendedores individuales que desean separar su patrimonio personal y vender a empresas.",
-    },
-    srl: {
-      title: "S.R.L. (Sociedad Comercial de Responsabilidad Limitada)",
-      owners: "De 2 a 20 socios",
-      liability: "Limitada al capital social aportado en participaciones.",
-      constitution: "SID-SUNARP + Notaría + Activación de RUC 20 en SUNAT.",
-      regimes: "RER, RMT o Régimen General.",
-      idealFor: "Negocios familiares o de pocos socios de confianza.",
-    },
-    sac: {
-      title: "S.A.C. (Sociedad Anónima Cerrada)",
-      owners: "De 2 a 20 accionistas",
-      liability: "Limitada al aporte de capital representado en acciones.",
-      constitution: "SID-SUNARP + Notaría + Activación de RUC 20 en SUNAT.",
-      regimes: "RER, RMT o Régimen General.",
-      idealFor: "Empresas con socios que buscan crecer, licitar o sumar inversión.",
-    },
-  }[entityType];
+  const today = new Date();
+  const month = today.toLocaleDateString("es-PE", { month: "long", year: "numeric" });
+  const first = (new Date(today.getFullYear(), today.getMonth(), 1).getDay() + 6) % 7;
+  const last = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const rucDayOffset: Record<string, number> = {
+    "0": 14,
+    "1": 15,
+    "2": 16,
+    "3": 16,
+    "4": 17,
+    "5": 17,
+    "6": 18,
+    "7": 18,
+    "8": 19,
+    "9": 19,
+    BC: 22,
+  };
+  const suggestedDueDay = Math.min(last, rucDayOffset[rucDigit] || 15);
+
+  const recommendedEntity =
+    ownerCount === "1" && !separateAssets
+      ? {
+          code: "Persona Natural con Negocio (RUC 10)",
+          desc: "Inscripción digital gratuita e inmediata en SUNAT sin gastos de notaría ni SUNARP. Ideal para empezar rápido.",
+          pros: ["Trámite 100% gratuito en SUNAT", "Permite acogerse al Nuevo RUS (cuota de S/ 20 o S/ 50)", "Sin minuta ni escritura pública"],
+          note: "Respondes con tu patrimonio personal frente a deudas del negocio.",
+        }
+      : ownerCount === "1" && separateAssets
+      ? {
+          code: "E.I.R.L. (Empresa Individual de Responsabilidad Limitada)",
+          desc: "Eres el único dueño (sin socios), pero creas una persona jurídica con RUC 20 que separa los bienes de la empresa de tus bienes personales.",
+          pros: ["Responsabilidad limitada al capital aportado", "Imagen corporativa con RUC 20 para vender a empresas", "Un solo titular"],
+          note: "Requiere reserva de nombre, acto constitutivo en SID-SUNARP, firma en notaría y RUC 20 (No aplica Nuevo RUS).",
+        }
+      : {
+          code: "S.A.C. (Sociedad Anónima Cerrada) o S.R.L.",
+          desc: "Para 2 a 20 socios. Permite dividir acciones o participaciones entre los propietarios y protege el patrimonio personal de cada socio.",
+          pros: ["De 2 a 20 socios o accionistas", "Patrimonio personal protegido", "Facilita sumar inversión y licitar con empresas o el Estado"],
+          note: "Se constituye mediante SID-SUNARP y notaría antes de activar el RUC 20 en SUNAT.",
+        };
 
   return (
     <div className="space-y-6">
+      {/* Tool 1: Visual Receipt Simulator (Boleta vs. Factura) */}
       <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Herramienta 1 · Comprobantes</span>
-        <h2 className="mt-1 text-xl font-extrabold text-slate-900">Asistente de Comprobantes de Pago (¿Boleta o Factura?)</h2>
-        <div className="mt-4 grid gap-5 lg:grid-cols-2">
-          <div className="space-y-4 rounded-2xl bg-slate-50 p-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+          Herramienta visual 1 · Comprobantes de pago
+        </span>
+        <h2 className="mt-0.5 text-xl font-extrabold text-slate-900">
+          Simulador de emisión: ¿Boleta de Venta o Factura Electrónica?
+        </h2>
+
+        <div className="mt-5 grid items-center gap-6 lg:grid-cols-[1fr_380px]">
+          <div className="space-y-4 rounded-2xl bg-slate-50 p-5">
             <div>
-              <span className="block text-xs font-bold text-slate-700">1. ¿Quién es tu cliente en esta venta?</span>
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <span className="block text-xs font-bold text-slate-700">1. ¿A quién le estás vendiendo?</span>
+              <div className="mt-2 grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setBuyerType("persona")}
                   className={
-                    "rounded-xl border px-3 py-2.5 text-xs font-bold transition " +
+                    "rounded-xl border p-3 text-left text-xs font-bold transition " +
                     (buyerType === "persona"
-                      ? "border-blue-600 bg-blue-600 text-white"
+                      ? "border-blue-600 bg-blue-600 text-white shadow-xs"
                       : "border-slate-200 bg-white text-slate-700")
                   }
                 >
-                  Consumidor final (Persona)
+                  👤 Consumidor final (Persona)
                 </button>
                 <button
                   type="button"
                   onClick={() => setBuyerType("empresa")}
                   className={
-                    "rounded-xl border px-3 py-2.5 text-xs font-bold transition " +
+                    "rounded-xl border p-3 text-left text-xs font-bold transition " +
                     (buyerType === "empresa"
-                      ? "border-blue-600 bg-blue-600 text-white"
+                      ? "border-blue-600 bg-blue-600 text-white shadow-xs"
                       : "border-slate-200 bg-white text-slate-700")
                   }
                 >
-                  Empresa o entidad con RUC
+                  🏢 Empresa / Entidad con RUC
                 </button>
               </div>
             </div>
 
-            <label className="block">
-              <span className="text-xs font-bold text-slate-700">2. Importe total de la venta (S/)</span>
+            <div>
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-700">2. Monto total de la operación (S/)</span>
+                <span className="text-blue-600">S/ {saleAmount}</span>
+              </div>
               <input
                 type="number"
                 min={1}
@@ -363,183 +470,235 @@ function PracticalToolsTab({ context }: { context: BusinessContext }) {
                 onChange={(e) => setSaleAmount(Math.max(0, Number(e.target.value) || 0))}
                 className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base font-extrabold text-slate-900 outline-none focus:border-blue-600"
               />
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {[35, 250, 700, 1200].map((val) => (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[45, 350, 700, 1500].map((val) => (
                   <button
                     key={val}
                     type="button"
                     onClick={() => setSaleAmount(val)}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50"
                   >
-                    S/ {val}
+                    Probar S/ {val}
                   </button>
                 ))}
               </div>
-            </label>
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-5">
-            <span className="inline-block rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold text-white">
-              {buyerType === "empresa" ? "Emitir: FACTURA ELECTRÓNICA" : "Emitir: BOLETA DE VENTA"}
-            </span>
-            <h3 className="mt-2.5 text-lg font-extrabold text-slate-900">
-              {buyerType === "empresa"
-                ? "Factura Electrónica con RUC del cliente"
-                : saleAmount >= 700
-                ? "Boleta de Venta con DNI obligatorio (≥ S/ 700)"
-                : "Boleta de Venta simple a consumidor final"}
-            </h3>
-            <ul className="mt-3 space-y-1.5 text-xs leading-5 text-slate-700">
+          {/* Live Visual Receipt Preview */}
+          <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-5 font-mono text-xs shadow-sm">
+            <div className="border-b border-slate-200 pb-3 text-center">
+              <p className="font-sans text-xs font-extrabold uppercase text-slate-900">{context.businessName}</p>
+              <span className="mt-1 inline-block rounded-md bg-blue-600 px-2.5 py-0.5 font-sans text-[11px] font-bold text-white">
+                {buyerType === "empresa" ? "FACTURA ELECTRÓNICA" : "BOLETA DE VENTA ELECTRÓNICA"}
+              </span>
+              <p className="mt-1 text-[11px] text-slate-400">{buyerType === "empresa" ? "E001-000124" : "EB01-000458"}</p>
+            </div>
+
+            <div className="my-3 space-y-1.5 border-b border-slate-200 pb-3 text-[11px]">
               {buyerType === "empresa" ? (
                 <>
-                  <li>• Requiere estar acogido a <b>RER, RMT o Régimen General</b> (el Nuevo RUS no emite facturas).</li>
-                  <li>
-                    • Desglose: Valor venta <b>S/ {(saleAmount / 1.18).toFixed(2)}</b> + IGV (18%):{" "}
-                    <b>S/ {(saleAmount - saleAmount / 1.18).toFixed(2)}</b>.
-                  </li>
+                  <p className="flex justify-between">
+                    <span className="text-slate-500">RUC Cliente:</span>
+                    <b className="text-slate-900">20601234567 (Obligatorio)</b>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-slate-500">Régimen emisor:</span>
+                    <b className="text-blue-600">RER / RMT / RG</b>
+                  </p>
                 </>
               ) : (
                 <>
-                  <li>
-                    • <b>Regla de S/ 700:</b>{" "}
-                    {saleAmount >= 700
-                      ? "Al ser igual o mayor a S/ 700, es obligatorio registrar el DNI y nombre completo del comprador."
-                      : "Al ser menor a S/ 700, no es obligatorio consignar el DNI del cliente salvo que lo solicite."}
-                  </li>
-                  <li>• Puedes emitirla gratuitamente desde la App Emprender o Portal SOL de SUNAT.</li>
+                  <p className="flex justify-between">
+                    <span className="text-slate-500">DNI Cliente:</span>
+                    <b className={saleAmount >= 700 ? "text-amber-700" : "text-slate-600"}>
+                      {saleAmount >= 700 ? "⚠️ OBLIGATORIO (Venta ≥ S/ 700)" : "Opcional (< S/ 700)"}
+                    </b>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-slate-500">Régimen emisor:</span>
+                    <b className="text-emerald-700">NRUS / RER / RMT / RG</b>
+                  </p>
                 </>
               )}
-            </ul>
+            </div>
+
+            <div className="space-y-1 text-right text-xs">
+              {buyerType === "empresa" && (
+                <>
+                  <p className="flex justify-between text-slate-500">
+                    <span>Op. Gravada:</span>
+                    <span>S/ {(saleAmount / 1.18).toFixed(2)}</span>
+                  </p>
+                  <p className="flex justify-between text-slate-500">
+                    <span>IGV (18%):</span>
+                    <span>S/ {(saleAmount - saleAmount / 1.18).toFixed(2)}</span>
+                  </p>
+                </>
+              )}
+              <p className="flex justify-between border-t border-slate-200 pt-2 font-sans text-sm font-extrabold text-slate-900">
+                <span>IMPORTE TOTAL:</span>
+                <span className="text-blue-600">S/ {saleAmount.toFixed(2)}</span>
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Tool 2: Interactive Legal Entity Selector */}
         <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Herramienta 2 · Personería</span>
-          <h2 className="mt-1 text-xl font-extrabold text-slate-900">Comparador de Forma Legal</h2>
-          <div className="mt-4 grid grid-cols-4 gap-1.5 rounded-xl bg-slate-100 p-1 text-xs font-bold">
-            {([
-              ["natural", "P. Natural"],
-              ["eirl", "E.I.R.L."],
-              ["srl", "S.R.L."],
-              ["sac", "S.A.C."],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setEntityType(key)}
-                className={
-                  "rounded-lg py-2 transition " +
-                  (entityType === key ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            Herramienta visual 2 · Tipo de empresa
+          </span>
+          <h2 className="mt-0.5 text-xl font-extrabold text-slate-900">
+            ¿Persona Natural, E.I.R.L. o S.A.C.?
+          </h2>
 
-          <div className="mt-4 space-y-2.5 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 text-xs">
-            <p className="text-sm font-extrabold text-slate-900">{entityDetails.title}</p>
-            <p>
-              <b className="text-slate-700">Integrantes:</b> {entityDetails.owners}
-            </p>
-            <p>
-              <b className="text-slate-700">Responsabilidad:</b> {entityDetails.liability}
-            </p>
-            <p>
-              <b className="text-slate-700">Trámite:</b> {entityDetails.constitution}
-            </p>
-            <p>
-              <b className="text-slate-700">Regímenes admitidos:</b> {entityDetails.regimes}
-            </p>
-            <p className="rounded-xl bg-white p-2.5 text-slate-600">
-              <b className="text-blue-600">Ideal para:</b> {entityDetails.idealFor}
-            </p>
+          <div className="mt-4 space-y-3">
+            <div>
+              <span className="text-xs font-bold text-slate-700">1. ¿Cuántas personas serán dueñas del negocio?</span>
+              <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setOwnerCount("1")}
+                  className={
+                    "rounded-xl border py-2.5 transition " +
+                    (ownerCount === "1" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")
+                  }
+                >
+                  👤 Solo yo (1 dueño)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOwnerCount("socios");
+                    setSeparateAssets(true);
+                  }}
+                  className={
+                    "rounded-xl border py-2.5 transition " +
+                    (ownerCount === "socios" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")
+                  }
+                >
+                  👥 2 o más socios
+                </button>
+              </div>
+            </div>
+
+            {ownerCount === "1" && (
+              <div>
+                <span className="text-xs font-bold text-slate-700">
+                  2. ¿Qué priorizas al iniciar?
+                </span>
+                <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSeparateAssets(false)}
+                    className={
+                      "rounded-xl border p-2.5 transition " +
+                      (!separateAssets ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")
+                    }
+                  >
+                    ⚡ Cero costo notarial (RUC 10 rápido)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSeparateAssets(true)}
+                    className={
+                      "rounded-xl border p-2.5 transition " +
+                      (separateAssets ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")
+                    }
+                  >
+                    🛡️ Separar mi patrimonio (RUC 20)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                Modalidad recomendada
+              </span>
+              <h3 className="mt-0.5 text-base font-extrabold text-slate-900">{recommendedEntity.code}</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">{recommendedEntity.desc}</p>
+              <ul className="mt-2.5 space-y-1 text-xs text-slate-700">
+                {recommendedEntity.pros.map((p) => (
+                  <li key={p}>
+                    <span className="font-bold text-emerald-600">✓</span> {p}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2.5 rounded-lg bg-white p-2 text-[11px] text-slate-500">
+                <b>Ten en cuenta:</b> {recommendedEntity.note}
+              </p>
+            </div>
           </div>
         </section>
 
+        {/* Tool 3: SUNAT RUC Calendar */}
         <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Herramienta 3 · Municipalidad</span>
-          <h2 className="mt-1 text-xl font-extrabold text-slate-900">Orientador de Riesgo ITSE</h2>
-          <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-bold text-slate-700">Área techada del establecimiento:</span>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5 text-xs font-bold">
-                {([
-                  ["menor100", "Hasta 100 m²"],
-                  ["100a500", "100 a 500 m²"],
-                  ["mayor500", "> 500 m²"],
-                ] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setAreaSize(key)}
-                    className={
-                      "rounded-xl border py-2 transition " +
-                      (areaSize === key
-                        ? "border-blue-600 bg-blue-50 text-blue-600"
-                        : "border-slate-200 bg-white text-slate-600")
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <span className="text-xs font-bold text-slate-700">¿Usa GLP mayor a 45 kg, inflamables o alto aforo?</span>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setHasHighRiskFactor(false)}
-                  className={
-                    "rounded-xl border py-2 transition " +
-                    (!hasHighRiskFactor
-                      ? "border-blue-600 bg-blue-50 text-blue-600"
-                      : "border-slate-200 bg-white text-slate-600")
-                  }
-                >
-                  No (Comercio / oficina estándar)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHasHighRiskFactor(true)}
-                  className={
-                    "rounded-xl border py-2 transition " +
-                    (hasHighRiskFactor
-                      ? "border-blue-600 bg-blue-50 text-blue-600"
-                      : "border-slate-200 bg-white text-slate-600")
-                  }
-                >
-                  Sí (Exigencia mayor)
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 text-xs leading-5">
-              {areaSize !== "mayor500" && !hasHighRiskFactor ? (
-                <>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-800">
-                    Riesgo Bajo o Medio · ITSE Posterior
-                  </span>
-                  <p className="mt-2 text-slate-700">
-                    Presentas Declaración Jurada de Condiciones de Seguridad; la municipalidad emite la Licencia de Funcionamiento y realiza la inspección técnica con posterioridad.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-900">
-                    Riesgo Alto o Muy Alto · ITSE Previa
-                  </span>
-                  <p className="mt-2 text-slate-700">
-                    Requiere presentar expediente técnico (planos eléctricos, arquitectura y seguridad) y aprobar la inspección ITSE antes de emitirse la Licencia.
-                  </p>
-                </>
-              )}
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                Herramienta visual 3 · Cronograma SUNAT
+              </span>
+              <h2 className="mt-0.5 text-xl font-extrabold capitalize text-slate-900">
+                Vencimiento según tu RUC ({month})
+              </h2>
             </div>
           </div>
+
+          <div className="mt-4 rounded-2xl bg-slate-50 p-3.5">
+            <label className="flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+              <span>Último dígito de tu RUC:</span>
+              <select
+                value={rucDigit}
+                onChange={(e) => setRucDigit(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-blue-600 outline-none"
+              >
+                {["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+                  <option key={d} value={d}>
+                    Terminado en {d}
+                  </option>
+                ))}
+                <option value="BC">Buenos Contribuyentes</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs">
+            {["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map((day) => (
+              <b key={day} className="py-1 text-slate-400">
+                {day}
+              </b>
+            ))}
+            {Array.from({ length: first }, (_, i) => (
+              <span key={"empty" + i} />
+            ))}
+            {Array.from({ length: last }, (_, i) => {
+              const dayNum = i + 1;
+              const isToday = today.getDate() === dayNum;
+              const isDue = suggestedDueDay === dayNum;
+              return (
+                <span
+                  key={i}
+                  className={
+                    "grid h-8 place-items-center rounded-lg text-xs " +
+                    (isDue
+                      ? "bg-amber-400 font-extrabold text-amber-950 ring-2 ring-amber-200"
+                      : isToday
+                      ? "bg-blue-600 font-bold text-white"
+                      : "text-slate-600")
+                  }
+                >
+                  {dayNum}
+                </span>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-center text-xs text-slate-500">
+            Fecha orientativa de declaración mensual resaltada en ámbar: <b>día {suggestedDueDay}</b>.
+          </p>
         </section>
       </div>
     </div>
@@ -547,18 +706,20 @@ function PracticalToolsTab({ context }: { context: BusinessContext }) {
 }
 
 export function RouteDashboard() {
+  const router = useRouter();
+  const [userName, setUserName] = useState<string>("Emprendedor");
   const [context, setContext] = useState<BusinessContext>(defaultDemoContext);
   const [results, setResults] = useState<AppliedRequirement[]>([]);
   const [taxes, setTaxes] = useState<TaxRecommendation[]>([]);
   const [statuses, setStatuses] = useState<Record<string, RequirementStatus>>({});
-  const [tab, setTab] = useState<Tab>("Mi ruta");
+  const [tab, setTab] = useState<Tab>("Comparar regímenes");
   const [selected, setSelected] = useState<TaxRecommendation["code"]>("NRUS");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isExample, setIsExample] = useState(true);
+  const [isExample, setIsExample] = useState(false);
   const [hasSavedUserEvaluation, setHasSavedUserEvaluation] = useState(false);
+  const [exploringExample, setExploringExample] = useState(false);
   const [activePresetId, setActivePresetId] = useState<string>(DEMO_PRESETS[0].id);
-  const [rucDigit, setRucDigit] = useState<string>("0");
 
   const evaluateContext = (targetContext: BusinessContext, exampleMode: boolean) => {
     setLoading(true);
@@ -595,11 +756,18 @@ export function RouteDashboard() {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
+      const activeId = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+      if (!activeId) {
+        router.replace("/ingresar?requiere=sesion");
+        return;
+      }
+      const foundAccount = getDemoAccounts().find((a) => a.id === activeId);
+      if (foundAccount) setUserName(foundAccount.name);
+
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "regimenes") setTab("Comparar regímenes");
+      if (tabParam === "ruta") setTab("Mi ruta");
       else if (tabParam === "herramientas") setTab("Herramientas prácticas");
-      else if (tabParam === "obligaciones") setTab("Mis obligaciones");
 
       const saved = localStorage.getItem(scopedStorageKey("efp-business-context"));
       const savedStatuses = JSON.parse(localStorage.getItem(scopedStorageKey("efp-requirement-statuses")) || "{}");
@@ -607,19 +775,22 @@ export function RouteDashboard() {
       const hasCompleteSaved = Boolean(
         parsedSaved && parsedSaved.questionnaire && Object.keys(parsedSaved.questionnaire).length > 0,
       );
-      const initialContext = hasCompleteSaved && parsedSaved ? parsedSaved : defaultDemoContext;
       setHasSavedUserEvaluation(hasCompleteSaved);
       setStatuses(savedStatuses);
-      evaluateContext(initialContext, !hasCompleteSaved);
+
+      if (hasCompleteSaved && parsedSaved) {
+        evaluateContext(parsedSaved, false);
+      } else {
+        setLoading(false);
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [router]);
 
-  const switchPreset = (presetId: string) => {
-    const found = DEMO_PRESETS.find((p) => p.id === presetId);
-    if (!found) return;
-    setActivePresetId(presetId);
-    evaluateContext(found.context, true);
+  const openExamplePreset = (preset: DemoPreset) => {
+    setActivePresetId(preset.id);
+    setExploringExample(true);
+    evaluateContext(preset.context, true);
   };
 
   const restoreUserEvaluation = () => {
@@ -627,13 +798,21 @@ export function RouteDashboard() {
       const saved = localStorage.getItem(scopedStorageKey("efp-business-context"));
       if (saved) {
         const parsed = JSON.parse(saved) as BusinessContext;
+        setExploringExample(false);
         evaluateContext(parsed, false);
       }
     } catch {}
   };
 
+  const startFreshEvaluation = () => {
+    try {
+      localStorage.removeItem(scopedStorageKey("efp-questionnaire-draft"));
+    } catch {}
+    router.push("/negocios/nuevo");
+  };
+
   const category = categories.find((item) => item.id === context.sectorId);
-  const selectedTax = taxes.find((item) => item.code === selected) || taxes[0];
+  const activity = activities.find((item) => item.id === context.activityId);
   const taxAdvice = useMemo(() => getTaxPath(context), [context]);
 
   const completed = results.filter((item) => statuses[item.requirementId] === "COMPLETADO").length;
@@ -645,24 +824,77 @@ export function RouteDashboard() {
     localStorage.setItem(scopedStorageKey("efp-requirement-statuses"), JSON.stringify(next));
   };
 
-  const today = new Date();
-  const month = today.toLocaleDateString("es-PE", { month: "long", year: "numeric" });
-  const first = (new Date(today.getFullYear(), today.getMonth(), 1).getDay() + 6) % 7;
-  const last = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const rucDayOffset: Record<string, number> = {
-    "0": 14,
-    "1": 15,
-    "2": 16,
-    "3": 16,
-    "4": 17,
-    "5": 17,
-    "6": 18,
-    "7": 18,
-    "8": 19,
-    "9": 19,
-    BC: 22,
-  };
-  const suggestedDueDay = Math.min(last, rucDayOffset[rucDigit] || 15);
+  // Onboarding Empty State when the logged-in user hasn't evaluated their business yet
+  if (!loading && !hasSavedUserEvaluation && !exploringExample) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+        <AppHeader />
+        <main className="mx-auto max-w-5xl px-4 py-10 sm:px-8">
+          <section className="rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-xs sm:p-10">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-3xl">🚀</span>
+            <h1 className="mt-4 text-2xl font-extrabold text-slate-900 sm:text-3xl">
+              ¡Hola, {userName}! Comienza el diagnóstico de tu negocio
+            </h1>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
+              Responde unas breves preguntas sobre tu actividad, ubicación y ventas proyectadas para generar tu recomendación de régimen tributario SUNAT y tu ruta de formalización.
+            </p>
+
+            <div className="mt-6">
+              <Link
+                href="/negocios/nuevo"
+                className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-7 py-4 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700 sm:text-base"
+              >
+                📝 Iniciar cuestionario de mi negocio →
+              </Link>
+            </div>
+
+            <div className="mt-8 grid gap-4 border-t border-slate-100 pt-7 text-left sm:grid-cols-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <span className="text-lg">1️⃣</span>
+                <h2 className="mt-1 text-xs font-extrabold text-slate-900">4 bloques breves</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Preguntas sencillas sin tecnicismos contables.</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <span className="text-lg">2️⃣</span>
+                <h2 className="mt-1 text-xs font-extrabold text-slate-900">Simulador SUNAT</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Compara NRUS, RER, RMT y RG con pagos en soles.</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <span className="text-lg">3️⃣</span>
+                <h2 className="mt-1 text-xs font-extrabold text-slate-900">Checklist paso a paso</h2>
+                <p className="mt-0.5 text-xs text-slate-500">RUC, SUNARP, Licencia Municipal e ITSE.</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-8">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              ¿Solo deseas explorar cómo luce el panel? Abre un caso de ejemplo:
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {DEMO_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => openExamplePreset(preset)}
+                  className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-400 hover:shadow-xs"
+                >
+                  <div>
+                    <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                      {preset.badge}
+                    </span>
+                    <h3 className="mt-2 text-sm font-extrabold text-slate-900">{preset.shortTitle}</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{preset.summary}</p>
+                  </div>
+                  <span className="mt-3 text-xs font-bold text-blue-600">Explorar este ejemplo →</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
@@ -673,175 +905,247 @@ export function RouteDashboard() {
             onClick={() => window.print()}
             className="hidden rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:inline-block"
           >
-            Imprimir / PDF
+            🖨️ Imprimir / PDF
           </button>
         }
       />
 
       <main className="mx-auto max-w-7xl px-4 py-7 sm:px-8">
-        {/* Scenario Switcher Bar */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 shadow-2xs print:hidden">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-slate-500">
-              {isExample ? "Escenario de demostración:" : "Modo diagnóstico:"}
-            </span>
-            {DEMO_PRESETS.map((preset) => {
-              const active = isExample && activePresetId === preset.id;
-              return (
+        {/* Only show Example Banner if the user explicitly clicked to view an example preset */}
+        {isExample && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs print:hidden">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-extrabold text-amber-900">👀 Viendo caso de ejemplo:</span>
+              {DEMO_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
-                  onClick={() => switchPreset(preset.id)}
+                  onClick={() => openExamplePreset(preset)}
                   className={
-                    "rounded-xl px-3 py-1.5 text-xs font-bold transition " +
-                    (active
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600")
+                    "rounded-lg px-2.5 py-1 font-bold transition " +
+                    (activePresetId === preset.id
+                      ? "bg-amber-900 text-white"
+                      : "bg-white text-amber-900 hover:bg-amber-100")
                   }
                 >
                   {preset.shortTitle} ({preset.targetRegime})
                 </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {hasSavedUserEvaluation && (
+                <button
+                  type="button"
+                  onClick={restoreUserEvaluation}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700"
+                >
+                  Volver a mi negocio
+                </button>
+              )}
+              <Link
+                href="/negocios/nuevo"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 font-bold text-white hover:bg-blue-700"
+              >
+                Evaluar mi propio negocio →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Visual Executive Business Card */}
+        <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-blue-50 text-2xl">
+                {category?.icon || "🏢"}
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                  <span className="rounded-md bg-blue-50 px-2.5 py-0.5 text-blue-700">
+                    {category?.name || "Mi negocio"}
+                  </span>
+                  <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-slate-700">
+                    📍 {[context.district, context.province, context.department].filter(Boolean).join(", ") || "Cajamarca"}
+                  </span>
+                  <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-slate-700">
+                    {context.legalPerson === "natural"
+                      ? "Persona Natural"
+                      : context.legalPerson === "juridica"
+                      ? "Persona Jurídica"
+                      : "Personería por definir"}
+                  </span>
+                </div>
+                <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+                  {context.businessName}
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
+              <Link
+                href="/negocios/nuevo"
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
+              >
+                ✎ Editar mis respuestas
+              </Link>
+              <button
+                type="button"
+                onClick={startFreshEvaluation}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100"
+              >
+                + Nueva evaluación
+              </button>
+            </div>
+          </div>
+
+          {/* 3 Visual KPI Cards inside Executive Header */}
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setTab("Comparar regímenes")}
+              className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-left transition hover:bg-emerald-50"
+            >
+              <div>
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                  Régimen tributario recomendado
+                </span>
+                <span className="mt-0.5 block text-lg font-extrabold text-emerald-950">
+                  {taxAdvice.code ? `${taxAdvice.code} · ${taxAdvice.title.replace("Primera opción a revisar: ", "")}` : "Revisar opciones"}
+                </span>
+              </div>
+              <span className="text-xl">⚖️</span>
+            </button>
+
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+              <div>
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Proyección mensual declarada
+                </span>
+                <span className="mt-0.5 block text-sm font-extrabold text-slate-900">
+                  Ventas: S/ {new Intl.NumberFormat("es-PE").format(context.monthlyRevenue)} · Compras: S/{" "}
+                  {new Intl.NumberFormat("es-PE").format(context.monthlyPurchases)}
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  {context.needsInvoices ? "Emite Factura y Boleta" : "Emite solo Boleta"}
+                </span>
+              </div>
+              <span className="text-xl">💵</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setTab("Mi ruta")}
+              className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 text-left transition hover:border-blue-300"
+            >
+              <div className="flex w-full items-center justify-between text-xs font-bold">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Progreso de formalización
+                </span>
+                <span className="text-blue-600">
+                  {completed}/{results.length} pasos ({progressPercent}%)
+                </span>
+              </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progressPercent}%` }} />
+              </div>
+            </button>
+          </div>
+
+          {/* 3 Clean Visual Navigation Tabs */}
+          <div className="mt-6 grid grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3 print:hidden">
+            {tabs.map((item) => {
+              const active = tab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTab(item.id)}
+                  className={
+                    "flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-xs font-bold transition sm:text-sm " +
+                    (active
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-600/20"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900")
+                  }
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
               );
             })}
-            {isExample && hasSavedUserEvaluation && (
-              <button
-                type="button"
-                onClick={restoreUserEvaluation}
-                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
-              >
-                Volver a mi evaluación
-              </button>
-            )}
-          </div>
-
-          <Link
-            href="/negocios/nuevo"
-            className="rounded-xl bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
-          >
-            {isExample ? "Crear mi propia evaluación →" : "Editar mis respuestas ✎"}
-          </Link>
-        </div>
-
-        {/* Executive Overview Card */}
-        <section className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-blue-600">
-                <span className="rounded-lg bg-blue-50 px-2.5 py-1">{category?.name || "Mi negocio"}</span>
-                <span className="text-slate-300">•</span>
-                <span className="text-slate-600">
-                  📍 {[context.district, context.province, context.department].filter(Boolean).join(", ") || "Cajamarca"}
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700">
-                  {context.legalPerson === "natural"
-                    ? "Persona Natural"
-                    : context.legalPerson === "juridica"
-                    ? "Persona Jurídica"
-                    : "Personería por definir"}
-                </span>
-              </div>
-
-              <h1 className="mt-2.5 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-                {context.businessName}
-              </h1>
-
-              <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
-                <span>
-                  Ventas:{" "}
-                  <b className="text-slate-800">
-                    S/ {new Intl.NumberFormat("es-PE").format(context.monthlyRevenue)}/mes
-                  </b>
-                </span>
-                <span>
-                  Compras:{" "}
-                  <b className="text-slate-800">
-                    S/ {new Intl.NumberFormat("es-PE").format(context.monthlyPurchases)}/mes
-                  </b>
-                </span>
-                <span>
-                  Comprobantes:{" "}
-                  <b className="text-slate-800">{context.needsInvoices ? "Factura y Boleta" : "Solo Boleta"}</b>
-                </span>
-                <span>
-                  Trabajadores: <b className="text-slate-800">{context.employeeCount || 0}</b>
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setTab("Comparar regímenes")}
-                className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-left transition hover:bg-emerald-100/80"
-              >
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                  Régimen preseleccionado
-                </span>
-                <span className="mt-0.5 block text-base font-extrabold text-emerald-950">
-                  {taxAdvice.code ? `${taxAdvice.code} · Ver simulador →` : "Comparar opciones →"}
-                </span>
-              </button>
-
-              <div className="min-w-[165px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                  <span>Avance de ruta</span>
-                  <span className="text-blue-600">{progressPercent}%</span>
-                </div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progressPercent}%` }} />
-                </div>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {completed} de {results.length} pasos listos
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 4-Tab Bar */}
-          <div className="mt-6 flex gap-1.5 overflow-x-auto border-t border-slate-100 pt-4 print:hidden">
-            {tabs.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTab(item.id)}
-                className={
-                  "whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold transition sm:text-sm " +
-                  (tab === item.id
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900")
-                }
-              >
-                {item.label}
-              </button>
-            ))}
           </div>
         </section>
 
         {loading ? (
-          <p className="py-16 text-center text-sm font-medium text-slate-500">Evaluando reglas de decisión…</p>
+          <p className="py-16 text-center text-sm font-medium text-slate-500">Actualizando diagnóstico…</p>
         ) : (
           <div className="mt-6">
-            {/* TAB 1: RUTA DE FORMALIZACIÓN */}
+            {/* TAB 1: DIAGNÓSTICO TRIBUTARIO Y SIMULADOR */}
+            {tab === "Comparar regímenes" && (
+              <VisualTaxSimulator
+                context={context}
+                taxes={taxes}
+                selectedCode={selected}
+                onSelectCode={setSelected}
+              />
+            )}
+
+            {/* TAB 2: RUTA DE FORMALIZACIÓN PASO A PASO */}
             {tab === "Mi ruta" && (
               <div className="space-y-6">
+                {/* 3 Concise Visual Orientation Cards */}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                      🏷️ Código CIIU referencial
+                    </span>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      {activity && activity.ciiu !== "0000" ? `${activity.ciiu} · ${activity.name}` : "Por confirmar en SUNAT"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">Para registrar tu actividad económica en el RUC.</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                      🏛️ Ruta de personería
+                    </span>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      {context.legalPerson === "juridica"
+                        ? "SUNARP (Notaría) → RUC 20 SUNAT"
+                        : "Inscripción directa RUC 10 SUNAT"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {context.legalPerson === "juridica"
+                        ? "Primero constituyes la empresa y luego activas el RUC."
+                        : "Sin trámite notarial; te inscribes gratis con tu DNI."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                      📍 Entidad municipal
+                    </span>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      Municipalidad de {context.district || "Cajamarca"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {context.hasPhysicalLocation
+                        ? "Requiere Licencia de Funcionamiento e inspección ITSE."
+                        : "Sin local abierto al público."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step-by-Step Interactive Roadmap */}
                 <section id="ruta" className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
                     <div>
                       <h2 className="text-xl font-extrabold text-slate-900">
-                        Pasos para formalizar tu negocio ({results.length})
+                        Checklist de trámites de tu negocio ({completed} de {results.length} listos)
                       </h2>
-                      <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                        Marca tus avances y despliega cada paso para ver dónde ir, costos y requisitos.
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Haz clic en el círculo de cada paso para marcarlo como completado, o abre su guía práctica.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setTab("Comparar regímenes")}
-                      className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100"
-                    >
-                      Ir al simulador tributario →
-                    </button>
                   </div>
 
                   <div className="mt-4 space-y-3">
@@ -865,15 +1169,15 @@ export function RouteDashboard() {
                           }
                         >
                           <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                            <div className="flex min-w-0 flex-1 items-start gap-3.5">
                               <button
                                 type="button"
                                 onClick={() =>
                                   change(req.id, status === "COMPLETADO" ? "PENDIENTE" : "COMPLETADO")
                                 }
-                                title="Marcar como completado o pendiente"
+                                title="Marcar como completado"
                                 className={
-                                  "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-extrabold transition " +
+                                  "mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-extrabold transition " +
                                   (status === "COMPLETADO"
                                     ? "bg-emerald-500 text-white"
                                     : status === "EN_PROCESO"
@@ -886,13 +1190,13 @@ export function RouteDashboard() {
 
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">
-                                    {req.category}
+                                  <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                                    Paso {index + 1} · {req.category}
                                   </span>
                                   <span className="text-xs font-medium text-slate-400">{req.institution}</span>
                                 </div>
                                 <h3 className="mt-1 text-base font-extrabold text-slate-900">{req.title}</h3>
-                                <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">{req.description}</p>
+                                <p className="mt-0.5 text-xs text-slate-600">{req.description}</p>
                               </div>
                             </div>
 
@@ -912,7 +1216,7 @@ export function RouteDashboard() {
                               >
                                 <option value="PENDIENTE">Pendiente</option>
                                 <option value="EN_PROCESO">En proceso</option>
-                                <option value="COMPLETADO">Completado</option>
+                                <option value="COMPLETADO">Completado ✓</option>
                               </select>
 
                               <button
@@ -926,40 +1230,27 @@ export function RouteDashboard() {
                                     : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-600")
                                 }
                               >
-                                {isOpen ? "Cerrar guía" : "Cómo hacerlo ↓"}
+                                {isOpen ? "Ocultar guía" : "Cómo hacerlo ↓"}
                               </button>
                             </div>
                           </div>
 
                           {isOpen && (
                             <div className="mt-4 border-t border-slate-100 pt-4">
-                              <div className="grid gap-3 rounded-xl bg-slate-50 p-3.5 text-xs sm:grid-cols-2">
-                                <p>
-                                  <b className="text-slate-800">¿Por qué aplica a tu caso?</b> {item.reason}
-                                </p>
-                                <p>
-                                  <b className="text-slate-800">Entidad:</b>{" "}
-                                  {req.category === "Municipalidad"
-                                    ? `Municipalidad de ${context.district || "tu distrito"}`
-                                    : req.institution}
-                                </p>
-                              </div>
                               <PracticalGuidePanel requirementId={req.id} context={context} />
-                              <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
-                                {source && (
+                              {source && (
+                                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                                  <span className="text-slate-500"> Motivo: {item.reason}</span>
                                   <a
                                     href={source.url}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="font-bold text-blue-600 underline"
                                   >
-                                    Fuente oficial ({source.institution}) ↗
+                                    Ver enlace oficial ({source.institution}) ↗
                                   </a>
-                                )}
-                                <Link href={`/requisitos/${req.id}`} className="font-bold text-slate-600 hover:underline">
-                                  Ver ficha técnica →
-                                </Link>
-                              </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </article>
@@ -967,203 +1258,11 @@ export function RouteDashboard() {
                     })}
                   </div>
                 </section>
-
-                {/* Collapsible Orientation Detail */}
-                <details className="group rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs">
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-extrabold text-slate-900">
-                    <span>💡 Orientación detallada sobre código CIIU sugerido, personería y RUC</span>
-                    <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-blue-600 group-open:hidden">
-                      Ver detalle +
-                    </span>
-                  </summary>
-                  <div className="mt-3">
-                    <BusinessSetupAdvicePanel context={context} />
-                    {context.legalPerson === "aun-no-se" && <LegalFormRecommendationPanel context={context} />}
-                  </div>
-                </details>
               </div>
             )}
 
-            {/* TAB 2: REGÍMENES Y SIMULADOR SUNAT */}
-            {tab === "Comparar regímenes" && (
-              <div className="space-y-6">
-                <TaxPathPanel context={context} />
-
-                <section className="grid gap-5 lg:grid-cols-[1fr_360px]">
-                  <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-                    <h2 className="text-xl font-extrabold text-slate-900">Evaluación por régimen tributario</h2>
-                    <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-                      Selecciona cualquiera de los 4 regímenes para inspeccionar qué reglas cumple tu negocio.
-                    </p>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {taxes.map((tax) => (
-                        <button
-                          key={tax.code}
-                          type="button"
-                          aria-pressed={selected === tax.code}
-                          onClick={() => setSelected(tax.code)}
-                          className={
-                            "rounded-2xl border p-4 text-left transition " +
-                            (selected === tax.code
-                              ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/15"
-                              : "border-slate-200 hover:border-blue-300")
-                          }
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xl font-extrabold text-slate-900">{tax.code}</span>
-                            <span className={"rounded-full border px-2.5 py-0.5 text-[11px] font-bold " + taxBadgeStyle[tax.status]}>
-                              {taxLabel[tax.status]}
-                            </span>
-                          </div>
-                          <p className="mt-1.5 text-sm font-bold text-slate-800">{tax.title}</p>
-                          <p className="mt-1 line-clamp-2 text-xs text-slate-500">{tax.reasons[0]}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <aside className="flex flex-col justify-between rounded-3xl bg-slate-900 p-6 text-white shadow-xs">
-                    {selectedTax && (
-                      <div>
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
-                          Reglas evaluadas
-                        </span>
-                        <h3 className="mt-1.5 text-2xl font-extrabold">{selectedTax.title}</h3>
-                        <span className="mt-2.5 inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
-                          {taxLabel[selectedTax.status]}
-                        </span>
-                        <ul className="mt-4 space-y-2">
-                          {selectedTax.reasons.map((reason) => (
-                            <li key={reason} className="flex gap-2 text-xs leading-5 text-slate-300">
-                              <span className="font-bold text-blue-400">→</span>
-                              <span>{reason}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <div className="mt-5 border-t border-white/10 pt-4">
-                      {selectedTax && sourceById(selectedTax.sourceId) && (
-                        <a
-                          href={sourceById(selectedTax.sourceId)?.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block rounded-xl bg-blue-600 px-4 py-2.5 text-center text-xs font-bold text-white hover:bg-blue-500"
-                        >
-                          Ver normativa oficial SUNAT ↗
-                        </a>
-                      )}
-                    </div>
-                  </aside>
-                </section>
-
-                <TaxPaymentSimulator context={context} />
-                <TaxComparisonTable />
-              </div>
-            )}
-
-            {/* TAB 3: HERRAMIENTAS PRÁCTICAS */}
+            {/* TAB 3: HERRAMIENTAS INTERACTIVAS */}
             {tab === "Herramientas prácticas" && <PracticalToolsTab context={context} />}
-
-            {/* TAB 4: CRONOGRAMA SUNAT */}
-            {tab === "Mis obligaciones" && (
-              <section id="obligaciones" className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-xl font-extrabold capitalize text-slate-900">{month}</h2>
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600">
-                      Simulador de vencimientos SUNAT
-                    </span>
-                  </div>
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <label className="block text-xs font-bold text-slate-700">
-                      Último dígito de tu RUC:
-                      <select
-                        value={rucDigit}
-                        onChange={(e) => setRucDigit(e.target.value)}
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-blue-600"
-                      >
-                        {["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-                          <option key={d} value={d}>
-                            RUC terminado en {d}
-                          </option>
-                        ))}
-                        <option value="BC">Buenos Contribuyentes</option>
-                      </select>
-                    </label>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Día orientativo de vencimiento mensual resaltado en ámbar: <b>día {suggestedDueDay}</b>.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-7 gap-1.5 text-center text-xs">
-                    {["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map((day) => (
-                      <b key={day} className="py-1.5 text-slate-400">
-                        {day}
-                      </b>
-                    ))}
-                    {Array.from({ length: first }, (_, i) => (
-                      <span key={"empty" + i} />
-                    ))}
-                    {Array.from({ length: last }, (_, i) => {
-                      const dayNum = i + 1;
-                      const isToday = today.getDate() === dayNum;
-                      const isDue = suggestedDueDay === dayNum;
-                      return (
-                        <span
-                          key={i}
-                          className={
-                            "grid h-9 place-items-center rounded-xl " +
-                            (isDue
-                              ? "bg-amber-400 font-extrabold text-amber-950"
-                              : isToday
-                              ? "bg-blue-600 font-bold text-white"
-                              : "text-slate-600")
-                          }
-                        >
-                          {dayNum}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
-                  <h2 className="text-xl font-extrabold text-slate-900">Resumen de avance</h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Actualiza el estado de cada trámite de tu ruta de formalización.
-                  </p>
-                  <div className="mt-4 space-y-2.5">
-                    {results.map((item) => {
-                      const req = requirementById(item.requirementId);
-                      const currentStatus = statuses[item.requirementId] || "PENDIENTE";
-                      return req ? (
-                        <div
-                          key={req.id}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
-                        >
-                          <div>
-                            <b className="text-xs font-bold text-slate-900">{req.title}</b>
-                            <p className="text-[11px] text-slate-400">{req.institution}</p>
-                          </div>
-                          <select
-                            aria-label={"Cambiar estado de " + req.title}
-                            value={currentStatus}
-                            onChange={(e) => change(req.id, e.target.value as RequirementStatus)}
-                            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700"
-                          >
-                            <option value="PENDIENTE">Pendiente</option>
-                            <option value="EN_PROCESO">En proceso</option>
-                            <option value="COMPLETADO">Completado</option>
-                          </select>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              </section>
-            )}
           </div>
         )}
       </main>

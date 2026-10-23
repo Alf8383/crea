@@ -4,8 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/app-header";
-import { scopedStorageKey } from "@/lib/account-storage";
-import { DEMO_PRESETS, type DemoPreset } from "@/lib/demo-presets";
+import { ACTIVE_ACCOUNT_KEY, scopedStorageKey } from "@/lib/account-storage";
 import { districtsFor, locations, provincesFor } from "@/lib/locations";
 import { getTaxPath } from "@/lib/practical-guides";
 import { sectionNames, visibleQuestions, type Answers, type Question } from "@/lib/questionnaire";
@@ -770,6 +769,11 @@ export function BusinessWizard() {
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       try {
+        const activeAccount = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+        if (!activeAccount) {
+          router.replace("/ingresar?requiere=sesion");
+          return;
+        }
         const saved = localStorage.getItem(accountDraftKey);
         const draft = saved ? JSON.parse(saved) : {};
         const answers: Answers = draft.answers || {};
@@ -795,7 +799,7 @@ export function BusinessWizard() {
       } catch {}
     });
     return () => cancelAnimationFrame(frame);
-  }, [accountDraftKey]);
+  }, [accountDraftKey, router]);
 
   const current = useMemo(() => visibleQuestions(section, data), [section, data]);
   const q = current[Math.min(position, Math.max(0, current.length - 1))];
@@ -879,17 +883,6 @@ export function BusinessWizard() {
     }
   };
 
-  const fillPresetIntoWizard = (preset: DemoPreset) => {
-    const qAnswers = (preset.context.questionnaire || {}) as Answers;
-    setData(qAnswers);
-    setSection(4);
-    setPosition(0);
-    try {
-      localStorage.setItem(accountDraftKey, JSON.stringify({ answers: qAnswers, section: 4, position: 0 }));
-      localStorage.setItem(accountContextKey, JSON.stringify(preset.context));
-    } catch {}
-  };
-
   const resetWizard = () => {
     setData({});
     setSection(0);
@@ -969,39 +962,34 @@ export function BusinessWizard() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader />
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
-        {/* Quick Preset Autocomplete Bar + Stepper */}
-        <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-7">
+      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-400">Autocompletar con ejemplo:</span>
-              {DEMO_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => fillPresetIntoWizard(preset)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  {preset.shortTitle} ({preset.targetRegime})
-                </button>
-              ))}
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600">
+                Cuestionario de diagnóstico empresarial
+              </span>
+              <p className="text-xs text-slate-500">
+                Tus respuestas se guardan automáticamente en tu cuenta.
+              </p>
             </div>
             {Object.keys(data).length > 0 && (
               <button
                 type="button"
                 onClick={resetWizard}
-                className="rounded-lg px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                className="rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-1.5 text-xs font-bold text-rose-600 transition hover:bg-rose-100"
               >
-                Reiniciar respuestas
+                Reiniciar desde cero
               </button>
             )}
           </div>
 
-          {/* 5-Section Clickable Stepper */}
+          {/* 5-Section Clickable Visual Stepper */}
           <ol aria-label="Progreso del cuestionario" className="mt-5 grid grid-cols-5 gap-2">
             {sectionNames.map((name, index) => {
               const active = index === section;
               const done = index < section;
+              const stepIcons = ["🏢", "📍", "💰", "📋", "✅"];
               return (
                 <li key={name}>
                   <button
@@ -1013,13 +1001,17 @@ export function BusinessWizard() {
                       }
                     }}
                     className={
-                      "flex w-full flex-col items-center gap-1.5 rounded-xl p-2 text-center transition " +
-                      (active ? "bg-blue-50/80 text-blue-600" : "text-slate-500 hover:bg-slate-50")
+                      "flex w-full flex-col items-center gap-1.5 rounded-2xl border p-2.5 text-center transition " +
+                      (active
+                        ? "border-blue-200 bg-blue-50/80 text-blue-700 shadow-2xs"
+                        : done
+                        ? "border-emerald-100 bg-emerald-50/40 text-emerald-800 hover:bg-emerald-50"
+                        : "border-transparent text-slate-500 hover:bg-slate-50")
                     }
                   >
                     <span
                       className={
-                        "grid h-7 w-7 place-items-center rounded-full text-xs font-extrabold " +
+                        "grid h-8 w-8 place-items-center rounded-xl text-xs font-extrabold " +
                         (done
                           ? "bg-emerald-500 text-white"
                           : active
@@ -1027,7 +1019,7 @@ export function BusinessWizard() {
                           : "bg-slate-100 text-slate-500")
                       }
                     >
-                      {done ? "✓" : index + 1}
+                      {done ? "✓" : stepIcons[index]}
                     </span>
                     <span className="hidden text-xs font-bold sm:block">{name}</span>
                   </button>

@@ -1,230 +1,246 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
-import { scopedStorageKey } from "@/lib/account-storage";
-import { DEMO_PRESETS, type DemoPreset } from "@/lib/demo-presets";
+import { ACTIVE_ACCOUNT_KEY } from "@/lib/account-storage";
 
-const modules = [
+const steps = [
   {
-    badge: "01 · Diagnóstico",
-    title: "Cuestionario adaptativo",
-    desc: "Preguntas claras que se ajustan según tu rubro, si tendrás local físico, socios o trabajadores.",
-    href: "/negocios/nuevo",
-    cta: "Responder cuestionario →",
+    num: "01",
+    icon: "👤",
+    title: "Crea tu cuenta gratuita",
+    desc: "Regístrate en segundos para que tus respuestas, diagnóstico y lista de trámites queden guardados en tu panel personal.",
   },
   {
-    badge: "02 · Tributación",
-    title: "Comparador y simulador SUNAT",
-    desc: "Evalúa compatibilidad con Nuevo RUS, RER, RMT y Régimen General y simula tu pago mensual en soles.",
-    href: "/negocios/demo/ruta?tab=regimenes",
-    cta: "Probar simulador →",
+    num: "02",
+    icon: "📝",
+    title: "Responde el cuestionario guiado",
+    desc: "Indica tu rubro, ubicación, proyección de ingresos y forma de trabajo con preguntas sencillas y sin tecnicismos.",
   },
   {
-    badge: "03 · Formalización",
-    title: "Ruta paso a paso verificable",
-    desc: "Guía práctica de inscripción en RUC, constitución en SUNARP, Licencia Municipal, ITSE y Planilla.",
-    href: "/negocios/demo/ruta",
-    cta: "Ver ruta paso a paso →",
-  },
-  {
-    badge: "04 · Utilidades",
-    title: "Asistente de comprobantes y empresas",
-    desc: "Simula cuándo emitir boleta o factura (regla de S/ 700) y compara Persona Natural vs. E.I.R.L. o S.A.C.",
-    href: "/negocios/demo/ruta?tab=herramientas",
-    cta: "Abrir herramientas →",
+    num: "03",
+    icon: "📊",
+    title: "Recibe tu régimen y ruta visual",
+    desc: "Obtén tu recomendación tributaria explicada, simula tus impuestos mensuales y sigue tu checklist de formalización paso a paso.",
   },
 ];
 
 const faqs = [
   {
-    q: "¿Necesito conocer mi código CIIU o términos contables para usar la plataforma?",
-    a: "No. Describes tu actividad con palabras simples y el motor de reglas sugiere el código CIIU referencial, el régimen compatible y los pasos aplicables.",
+    q: "¿Necesito saber mi código CIIU o tener contador para empezar?",
+    a: "No. Solo describes tu actividad con tus propias palabras y el sistema te sugiere el código CIIU referencial, el régimen compatible y los pasos en lenguaje sencillo.",
   },
   {
     q: "¿Qué ocurre si mi negocio aún es una idea y todavía no tengo ventas?",
-    a: "Puedes ingresar un estimado mensual aproximado o usar la calculadora integrada por producto/servicio para proyectar tus ingresos y comparar regímenes antes de inscribirte en SUNAT.",
+    a: "En el cuestionario podrás ingresar un estimado mensual aproximado o usar la calculadora por producto/servicio para proyectar tus ingresos antes de inscribirte en SUNAT.",
   },
   {
-    q: "¿Debo registrarme obligatoriamente para evaluar mi negocio?",
-    a: "Puedes usar el cuestionario y el simulador de inmediato sin cuenta, o crear una cuenta rápida para guardar tu progreso y retomar tu ruta cuando quieras.",
+    q: "¿Por qué necesito iniciar sesión para hacer el cuestionario?",
+    a: "Para que tu diagnóstico tributario y el progreso de tus trámites (RUC, SUNARP, Licencia Municipal, ITSE) queden guardados en tu panel personal y puedas retomarlos cuando quieras.",
   },
 ];
 
 export default function Home() {
-  const router = useRouter();
-  const [quickSales, setQuickSales] = useState<number>(4200);
+  const [sales, setSales] = useState<number>(4500);
+  const [purchases, setPurchases] = useState<number>(1800);
   const [needsInvoice, setNeedsInvoice] = useState<boolean>(false);
   const [isCompany, setIsCompany] = useState<boolean>(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  const applyQuickPreset = (preset: DemoPreset) => {
-    setQuickSales(preset.context.monthlyRevenue);
-    setNeedsInvoice(Boolean(preset.context.needsInvoices));
-    setIsCompany(preset.context.legalPerson === "juridica");
-  };
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      try {
+        setIsLoggedIn(Boolean(localStorage.getItem(ACTIVE_ACCOUNT_KEY)));
+      } catch {}
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
-  const openFullSimulator = () => {
-    const matchedPreset =
-      !isCompany && !needsInvoice && quickSales <= 8000
-        ? DEMO_PRESETS[0]
-        : !isCompany
-        ? DEMO_PRESETS[1]
-        : DEMO_PRESETS[2];
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.max(0, Math.round(n)));
 
-    const customContext = {
-      ...matchedPreset.context,
-      monthlyRevenue: quickSales,
-      monthlyPurchases: Math.round(quickSales * 0.45),
-      annualPurchases: Math.round(quickSales * 0.45) * 12,
-      needsInvoices: needsInvoice,
-      legalPerson: isCompany ? ("juridica" as const) : ("natural" as const),
-      questionnaire: {
-        ...matchedPreset.context.questionnaire,
-        P09: isCompany ? "Persona jurídica / empresa" : "Persona natural",
-        P20: `monto:${quickSales}`,
-        P23: needsInvoice
-          ? "Sí, mis clientes me pedirán factura"
-          : "No, venderé solo a consumidores finales con boleta",
-        TAX_PURCHASES: String(Math.round(quickSales * 0.45)),
-      },
-    };
+  // Self-contained live tax calculations right on the landing page
+  const netSales = sales / 1.18;
+  const netPurchases = purchases / 1.18;
+  const igvPayable = Math.max(0, (sales - netSales) - (purchases - netPurchases));
 
-    try {
-      localStorage.setItem(scopedStorageKey("efp-business-context"), JSON.stringify(customContext));
-    } catch {}
-    router.push("/negocios/demo/ruta");
-  };
+  const nrusCompatible = !isCompany && !needsInvoice && sales <= 8000 && purchases <= 8000;
+  const nrusQuota = sales <= 5000 && purchases <= 5000 ? 20 : 50;
+  const rerCompatible = sales * 12 <= 525000 && purchases * 12 <= 525000;
+  const rmtCompatible = sales * 12 <= 1700 * 5500;
 
-  // Live calculation for the interactive hero widget
-  const nrusEligible = !isCompany && !needsInvoice && quickSales <= 8000;
-  const rerEligible = !nrusEligible && quickSales * 12 <= 525000;
-  const recommendedCode = nrusEligible ? "Nuevo RUS (NRUS)" : rerEligible ? "Régimen Especial (RER)" : "RMT (MYPE Tributario)";
-  const estimatedMonthlyTax = nrusEligible
-    ? quickSales <= 5000
-      ? "S/ 20.00 fijo / mes"
-      : "S/ 50.00 fijo / mes"
-    : rerEligible
-    ? `S/ ${Math.round((quickSales / 1.18) * 0.015)} Renta + IGV`
-    : `S/ ${Math.round((quickSales / 1.18) * 0.01)} Renta + IGV`;
+  const rerMonthlyTotal = netSales * 0.015 + igvPayable;
+  const rmtMonthlyTotal = netSales * 0.01 + igvPayable;
+  const rgMonthlyTotal = netSales * 0.015 + igvPayable;
+
+  const recommended = nrusCompatible
+    ? {
+        code: "Nuevo RUS (NRUS)",
+        badge: sales <= 5000 && purchases <= 5000 ? "Categoría 1 · S/ 20 al mes" : "Categoría 2 · S/ 50 al mes",
+        reason:
+          "Como operarás como Persona Natural, emitirás solo boleta de venta y tus ingresos/compras no superan S/ 8,000 al mes, el Nuevo RUS es la opción más simple: pagas una única cuota fija y no llevas libros contables.",
+      }
+    : rerCompatible
+    ? {
+        code: "Régimen Especial de Renta (RER)",
+        badge: `Pago estimado: S/ ${fmt(rerMonthlyTotal)} / mes`,
+        reason: isCompany
+          ? "Al operar como Persona Jurídica (empresa), no aplica el Nuevo RUS. Por tu nivel de ventas y compras (menores a S/ 525,000 al año), puedes acogerte al RER o al RMT emitiendo facturas y boletas."
+          : needsInvoice
+          ? "Como necesitas emitir facturas a tus clientes, el Nuevo RUS queda descartado. El RER te permite emitir facturas con un pago definitivo mensual (1.5% Renta + IGV) sin Declaración Anual."
+          : "Tus ventas o compras superan los S/ 8,000 mensuales del Nuevo RUS, pero están dentro del tope del RER (hasta S/ 43,750/mes promedio).",
+      }
+    : {
+        code: "Régimen MYPE Tributario (RMT)",
+        badge: `Pago estimado: S/ ${fmt(rmtMonthlyTotal)} / mes`,
+        reason:
+          "Por el volumen proyectado de ingresos o compras, el RMT te permite operar sin exclusiones de giro, emitiendo facturas y boletas con pagos a cuenta del 1% mensual y regularización anual según tu utilidad.",
+      };
+
+  const startEvaluationHref = isLoggedIn ? "/negocios/nuevo" : "/registro";
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader />
 
       <main>
-        {/* Hero Section with Live Interactive Simulator */}
-        <section className="mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
-          <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-3.5 py-1.5 text-xs font-bold text-blue-700">
+        {/* Hero Section */}
+        <section id="simulador" className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-8 lg:pt-12">
+          <div className="grid items-start gap-10 lg:grid-cols-[1fr_1.1fr]">
+            {/* Left Column: Value Proposition */}
+            <div className="lg:pt-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700">
                 <span className="h-2 w-2 rounded-full bg-blue-600" />
-                Sistema basado en reglas de decisión
+                Orientación tributaria y formalización empresarial
               </div>
 
-              <h1 className="mt-5 text-4xl font-extrabold leading-[1.12] tracking-tight text-slate-900 sm:text-5xl lg:text-[52px]">
-                Encuentra tu régimen tributario y formaliza tu negocio{" "}
+              <h1 className="mt-5 text-4xl font-extrabold leading-[1.12] tracking-tight text-slate-900 sm:text-5xl">
+                Descubre qué régimen tributario te conviene y{" "}
                 <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  paso a paso
+                  cómo formalizarte
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-                Evalúa tu idea o emprendimiento en minutos. Compara Nuevo RUS, RER, RMT y Régimen General con cálculos claros y obtén tu lista de trámites verificables.
+              <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
+                Comprende las reglas de SUNAT sin complicaciones. Simula tus pagos mensuales aquí mismo o inicia tu evaluación personalizada para obtener los trámites exactos de tu negocio.
               </p>
 
-              <div className="mt-8 flex flex-wrap items-center gap-3.5">
+              <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link
-                  href="/negocios/nuevo"
+                  href={startEvaluationHref}
                   className="inline-flex items-center gap-2.5 rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700 sm:text-base"
                 >
-                  Iniciar cuestionario guiado
+                  {isLoggedIn ? "Ir al cuestionario de mi negocio" : "Crear cuenta y evaluar mi negocio"}
                   <span aria-hidden="true">→</span>
                 </Link>
-                <Link
-                  href="/negocios/demo/ruta"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 shadow-xs transition hover:border-blue-300 hover:text-blue-600 sm:text-base"
-                >
-                  Ver ruta y simulador demo
-                </Link>
+                {!isLoggedIn && (
+                  <Link
+                    href="/ingresar"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 sm:text-base"
+                  >
+                    Ya tengo cuenta
+                  </Link>
+                )}
               </div>
 
-              <div className="mt-8 grid grid-cols-3 gap-4 border-t border-slate-200/80 pt-6 sm:max-w-lg">
-                <div>
-                  <p className="text-2xl font-extrabold text-slate-900">4</p>
-                  <p className="text-xs font-medium text-slate-500">Regímenes SUNAT comparados</p>
+              {/* Visual Feature Highlights */}
+              <div className="mt-9 grid gap-3 sm:grid-cols-2">
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-lg">⚖️</span>
+                  <div>
+                    <h2 className="text-sm font-extrabold text-slate-900">4 Regímenes SUNAT</h2>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                      Compara Nuevo RUS, RER, RMT y Régimen General con topes y requisitos claros.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-extrabold text-slate-900">16</p>
-                  <p className="text-xs font-medium text-slate-500">Rubros empresariales</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-extrabold text-slate-900">100%</p>
-                  <p className="text-xs font-medium text-slate-500">Fuentes oficiales trazables</p>
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-lg">🗺️</span>
+                  <div>
+                    <h2 className="text-sm font-extrabold text-slate-900">Ruta según tu rubro</h2>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                      Checklist paso a paso de RUC, SUNARP, Licencia Municipal, ITSE y Planilla.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Interactive Live Mini-Simulator Card */}
-            <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] sm:p-7">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+            {/* Right Column: Self-Contained Interactive Tax Calculator */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] sm:p-7">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
-                    ⚡ Simulador rápido interactivo
+                    ⚡ Calculadora interactiva instantánea
                   </span>
-                  <h2 className="text-lg font-extrabold text-slate-900">Prueba cómo funciona en segundos</h2>
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Simula tu régimen tributario en vivo
+                  </h2>
                 </div>
-                <div className="flex gap-1.5">
-                  {DEMO_PRESETS.map((preset, idx) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => applyQuickPreset(preset)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                    >
-                      Caso {idx + 1}: {preset.targetRegime}
-                    </button>
-                  ))}
-                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">
+                  Cálculo referencial
+                </span>
               </div>
 
-              {/* Interactive Controls */}
-              <div className="mt-5 space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-bold text-slate-700">Ventas mensuales estimadas</span>
-                    <span className="rounded-lg bg-blue-50 px-2.5 py-1 font-extrabold text-blue-700">
-                      S/ {new Intl.NumberFormat("es-PE").format(quickSales)} / mes
-                    </span>
+              {/* Sliders & Toggles */}
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-3.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-700">Ventas al mes</span>
+                      <span className="font-extrabold text-blue-600">S/ {fmt(sales)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1000}
+                      max={45000}
+                      step={500}
+                      value={sales}
+                      onChange={(e) => setSales(Number(e.target.value))}
+                      aria-label="Ventas mensuales estimadas"
+                      className="mt-2 w-full cursor-pointer accent-blue-600"
+                    />
+                    <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+                      <span>S/ 1,000</span>
+                      <span>Tope NRUS: S/ 8,000</span>
+                      <span>S/ 45,000</span>
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min={1000}
-                    max={45000}
-                    step={500}
-                    value={quickSales}
-                    onChange={(e) => setQuickSales(Number(e.target.value))}
-                    aria-label="Ventas mensuales estimadas"
-                    className="mt-2.5 w-full cursor-pointer accent-blue-600"
-                  />
-                  <div className="mt-1 flex justify-between text-[11px] font-medium text-slate-400">
-                    <span>S/ 1,000</span>
-                    <span>S/ 8,000 (Tope NRUS)</span>
-                    <span>S/ 45,000</span>
+
+                  <div className="rounded-2xl bg-slate-50 p-3.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-700">Compras con factura</span>
+                      <span className="font-extrabold text-emerald-700">S/ {fmt(purchases)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={35000}
+                      step={500}
+                      value={purchases}
+                      onChange={(e) => setPurchases(Number(e.target.value))}
+                      aria-label="Compras mensuales con factura"
+                      className="mt-2 w-full cursor-pointer accent-blue-600"
+                    />
+                    <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+                      <span>S/ 0</span>
+                      <span> Reduce IGV</span>
+                      <span>S/ 35,000</span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="block text-xs font-bold text-slate-600">¿Qué comprobantes emitirás?</span>
+                    <span className="block text-xs font-bold text-slate-600">¿Emitirás Factura?</span>
                     <div className="mt-1.5 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
                       <button
                         type="button"
                         onClick={() => setNeedsInvoice(false)}
                         className={
                           "rounded-lg py-2 transition " +
-                          (!needsInvoice ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
+                          (!needsInvoice ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
                         }
                       >
                         Solo Boleta
@@ -234,23 +250,23 @@ export default function Home() {
                         onClick={() => setNeedsInvoice(true)}
                         className={
                           "rounded-lg py-2 transition " +
-                          (needsInvoice ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
+                          (needsInvoice ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
                         }
                       >
-                        Factura
+                        Sí, Factura
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <span className="block text-xs font-bold text-slate-600">Tipo de personería</span>
+                    <span className="block text-xs font-bold text-slate-600">¿Cómo te registrarás?</span>
                     <div className="mt-1.5 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
                       <button
                         type="button"
                         onClick={() => setIsCompany(false)}
                         className={
                           "rounded-lg py-2 transition " +
-                          (!isCompany ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
+                          (!isCompany ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
                         }
                       >
                         P. Natural
@@ -260,7 +276,7 @@ export default function Home() {
                         onClick={() => setIsCompany(true)}
                         className={
                           "rounded-lg py-2 transition " +
-                          (isCompany ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
+                          (isCompany ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
                         }
                       >
                         Empresa
@@ -270,79 +286,137 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Live Result Output Box */}
-              <div className="mt-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 p-4">
+              {/* Self-Contained Result Breakdown right inside the widget */}
+              <div className="mt-5 rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/40 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-                      ● Preselección en tiempo real
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                      Resultado para tus parámetros
                     </span>
-                    <p className="mt-0.5 text-xl font-extrabold text-slate-900">{recommendedCode}</p>
+                    <h3 className="text-lg font-extrabold text-slate-900">{recommended.code}</h3>
                   </div>
-                  <div className="text-right">
-                    <span className="block text-[11px] font-semibold text-slate-500">Pago mensual estimado</span>
-                    <span className="text-sm font-extrabold text-blue-600">{estimatedMonthlyTax}</span>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-800">
+                    {recommended.badge}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-600">{recommended.reason}</p>
+
+                {/* Mini 4-Regime Comparison Grid right inside the card */}
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div
+                    className={
+                      "rounded-xl border p-2.5 " +
+                      (nrusCompatible ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-white/80 opacity-60")
+                    }
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span>NRUS</span>
+                      <span className={nrusCompatible ? "text-emerald-700" : "text-rose-600"}>
+                        {nrusCompatible ? "✓ Aplica" : "✕ No"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      {nrusCompatible ? `S/ ${nrusQuota}` : "Excluido"}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {!nrusCompatible
+                        ? isCompany
+                          ? "Solo P. Natural"
+                          : needsInvoice
+                          ? "No da factura"
+                          : "> S/ 8,000/mes"
+                        : "Cuota fija única"}
+                    </p>
+                  </div>
+
+                  <div
+                    className={
+                      "rounded-xl border p-2.5 " +
+                      (rerCompatible ? "border-blue-200 bg-white" : "border-slate-200 bg-white/80 opacity-60")
+                    }
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span>RER</span>
+                      <span className={rerCompatible ? "text-emerald-700" : "text-rose-600"}>
+                        {rerCompatible ? "✓ Aplica" : "✕ No"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      {rerCompatible ? `S/ ${fmt(rerMonthlyTotal)}` : "> Tope"}
+                    </p>
+                    <p className="text-[10px] text-slate-500">1.5% Renta + IGV</p>
+                  </div>
+
+                  <div
+                    className={
+                      "rounded-xl border p-2.5 " +
+                      (rmtCompatible ? "border-blue-200 bg-white" : "border-slate-200 bg-white/80 opacity-60")
+                    }
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span>RMT</span>
+                      <span className="text-emerald-700">✓ Aplica</span>
+                    </div>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">S/ {fmt(rmtMonthlyTotal)}</p>
+                    <p className="text-[10px] text-slate-500">1.0% Renta + IGV</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span>R. General</span>
+                      <span className="text-emerald-700">✓ Aplica</span>
+                    </div>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">S/ {fmt(rgMonthlyTotal)}</p>
+                    <p className="text-[10px] text-slate-500">1.5% Renta + IGV</p>
                   </div>
                 </div>
 
-                <p className="mt-2.5 text-xs leading-5 text-slate-600">
-                  {nrusEligible
-                    ? "Cumple condiciones de Persona Natural sin emisión de facturas y hasta S/ 8,000 mensuales. No llevas libros contables."
-                    : rerEligible
-                    ? "Permite emitir facturas y boletas con pago definitivo mensual de 1.5% de Renta e IGV, hasta S/ 525,000 anuales."
-                    : "Ideal para empresas o negocios con mayores ingresos o activos, con tasa reducida de renta anual sobre la utilidad."}
-                </p>
-
-                <button
-                  type="button"
-                  onClick={openFullSimulator}
-                  className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-blue-600"
-                >
-                  Abrir diagnóstico completo con estos datos →
-                </button>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-blue-100 pt-3">
+                  <span className="text-[11px] text-slate-500">
+                    ¿Quieres evaluar las reglas de tu rubro, activos, trabajadores y distrito?
+                  </span>
+                  <Link
+                    href={startEvaluationHref}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+                  >
+                    Hacer diagnóstico de mi negocio →
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* 4 Cohesive Platform Modules */}
-        <section className="border-t border-slate-200/70 bg-white py-14">
+        {/* How it works: 3 Clear Visual Steps */}
+        <section id="como-funciona" className="border-t border-slate-200/70 bg-white py-14">
           <div className="mx-auto max-w-7xl px-4 sm:px-8">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Arquitectura de la plataforma</p>
-                <h2 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">
-                  Todo lo que necesitas para decidir con claridad
-                </h2>
-              </div>
-              <Link href="/negocios/nuevo" className="text-sm font-bold text-blue-600 hover:underline">
-                Empezar ahora →
-              </Link>
+            <div className="text-center">
+              <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Flujo ordenado</span>
+              <h2 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">
+                ¿Cómo funciona la plataforma?
+              </h2>
             </div>
 
-            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {modules.map((m) => (
-                <Link
-                  key={m.title}
-                  href={m.href}
-                  className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-6 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-white hover:shadow-md"
+            <div className="mt-8 grid gap-6 md:grid-cols-3">
+              {steps.map((s) => (
+                <article
+                  key={s.num}
+                  className="relative rounded-3xl border border-slate-200/90 bg-slate-50/50 p-6 transition hover:border-blue-200 hover:bg-white hover:shadow-sm"
                 >
-                  <div>
-                    <span className="inline-block rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
-                      {m.badge}
-                    </span>
-                    <h3 className="mt-4 text-lg font-extrabold text-slate-900 group-hover:text-blue-600">{m.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{m.desc}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-2xl">{s.icon}</span>
+                    <span className="text-2xl font-black text-slate-200">{s.num}</span>
                   </div>
-                  <span className="mt-5 inline-block text-xs font-bold text-blue-600">{m.cta}</span>
-                </Link>
+                  <h3 className="mt-4 text-lg font-extrabold text-slate-900">{s.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.desc}</p>
+                </article>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Minimal FAQ */}
-        <section className="border-t border-slate-200/70 py-14">
+        {/* FAQ */}
+        <section id="preguntas" className="border-t border-slate-200/70 py-14">
           <div className="mx-auto max-w-3xl px-4 sm:px-8">
             <h2 className="text-center text-2xl font-extrabold text-slate-900 sm:text-3xl">Preguntas frecuentes</h2>
             <div className="mt-7 space-y-3">
@@ -372,17 +446,14 @@ export default function Home() {
               C
             </span>
             <span className="font-bold text-slate-800">Crea</span>
-            <span>· Orientación tributaria y formalización empresarial</span>
+            <span>· Sistema de recomendación tributaria y formalización empresarial</span>
           </div>
           <div className="flex gap-5 font-semibold text-slate-600">
-            <Link href="/negocios/nuevo" className="hover:text-blue-600">
-              Cuestionario
+            <Link href={startEvaluationHref} className="hover:text-blue-600">
+              Evaluar mi negocio
             </Link>
-            <Link href="/negocios/demo/ruta" className="hover:text-blue-600">
-              Simulador SUNAT
-            </Link>
-            <Link href="/admin" className="hover:text-blue-600">
-              Catálogo de reglas
+            <Link href="/ingresar" className="hover:text-blue-600">
+              Iniciar sesión
             </Link>
           </div>
         </div>
