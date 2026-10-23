@@ -1,9 +1,63 @@
 import Link from "next/link";
+import { AppHeader } from "@/components/app-header";
 import { requirementById, sourceById } from "@/lib/seed-catalog";
 
 export function RequirementDetail({ id }: { id: string }) {
   const requirement = requirementById(id);
-  if (!requirement) return <main className="p-10">No encontramos este requisito.</main>;
+  if (!requirement) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+        <AppHeader />
+        <main className="mx-auto max-w-3xl px-4 py-12 text-center">No encontramos este requisito.</main>
+      </div>
+    );
+  }
   const source = sourceById(requirement.sourceId);
-  return <main className="min-h-screen bg-[#edf5fb] px-5 py-10 text-[#071c56]"><div className="mx-auto max-w-3xl"><Link href="/negocios/demo/ruta" className="font-bold text-[#1464f6]">← Volver a mi ruta</Link><article className="mt-6 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-10"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#1464f6]">{requirement.category}</span><h1 className="mt-5 text-3xl font-black">{requirement.title}</h1><p className="mt-3 text-lg leading-8 text-slate-600">{requirement.description}</p><div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">Información en proceso de verificación formal. Esta ficha sirve para preparar preguntas ante la entidad; aún no confirma una obligación en tu caso.</div><section className="mt-8"><h2 className="text-lg font-bold">Entidad de consulta</h2><p className="mt-2 text-slate-600">{requirement.institution}</p></section><section className="mt-8"><h2 className="text-lg font-bold">Documentos o información referencial</h2><ul className="mt-3 space-y-2 text-slate-600">{requirement.documents.map(document=><li key={document}>• {document}</li>)}</ul></section>{source&&<section className="mt-8 rounded-2xl bg-blue-50 p-5"><p className="text-sm font-bold">Fuente oficial enlazada</p><a className="mt-2 inline-block font-semibold text-[#1464f6] underline" href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><p className="mt-2 text-sm text-slate-600">Estado: {source.status==="VIGENTE"?"revisada":"revisión formal pendiente"}. {source.evidence}</p></section>}<p className="mt-8 border-t border-slate-100 pt-5 text-sm leading-6 text-slate-500">Confirma el procedimiento, los documentos, costos y plazos con la entidad competente para tu ubicación y actividad.</p></article></div></main>;
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      <AppHeader />
+      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-8">
+        <Link href="/negocios/demo/ruta" className="text-xs font-bold text-blue-600 hover:underline">
+          ← Volver a mi ruta de formalización
+        </Link>
+
+        <article className="mt-4 rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs sm:p-8">
+          <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">{requirement.category}</span>
+          <h1 className="mt-3 text-2xl font-extrabold text-slate-900 sm:text-3xl">{requirement.title}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">{requirement.description}</p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <section className="rounded-2xl bg-slate-50 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Entidad competente</h2>
+              <p className="mt-1 text-sm font-bold text-slate-900">{requirement.institution}</p>
+            </section>
+            <section className="rounded-2xl bg-slate-50 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Referencias / requisitos</h2>
+              <ul className="mt-1 space-y-1 text-xs font-medium text-slate-700">
+                {requirement.documents.map((document) => (
+                  <li key={document}>• {document}</li>
+                ))}
+              </ul>
+            </section>
+          </div>
+
+          {source && (
+            <section className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+              <p className="text-xs font-bold text-blue-700">Fuente oficial vinculada</p>
+              <a
+                className="mt-1 inline-block text-sm font-extrabold text-slate-900 underline hover:text-blue-600"
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {source.title} ↗
+              </a>
+              <p className="mt-1 text-xs text-slate-600">{source.evidence}</p>
+            </section>
+          )}
+        </article>
+      </main>
+    </div>
+  );
 }

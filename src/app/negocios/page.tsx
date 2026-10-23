@@ -7,8 +7,8 @@ import { AppHeader } from "@/components/app-header";
 import { scopedStorageKey } from "@/lib/account-storage";
 import { DEMO_PRESETS, type DemoPreset } from "@/lib/demo-presets";
 import { getTaxPath } from "@/lib/practical-guides";
-import { categories, rules, sources } from "@/lib/seed-catalog";
 import { RuleEngine } from "@/lib/rule-engine";
+import { categories, rules, sources } from "@/lib/seed-catalog";
 import type { BusinessContext, RequirementStatus } from "@/lib/types";
 
 export default function BusinessesPage() {
@@ -62,150 +62,173 @@ export default function BusinessesPage() {
   const taxAdvice = savedContext ? getTaxPath(savedContext) : undefined;
 
   return (
-    <main className="min-h-screen bg-[#f4f8fc]">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader admin />
-      <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm font-bold uppercase tracking-widest text-cyan-700">Mi espacio de emprendimiento</p>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black text-[#053b78] sm:text-4xl">Tus evaluaciones empresariales</h1>
-            <p className="mt-2 text-slate-600">
-              Consulta el diagnóstico de tu negocio, compara regímenes tributarios o inicia una evaluación guiada.
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Panel de emprendedor</span>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+              Mi espacio de evaluación
+            </h1>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+              Retoma tu diagnóstico guardado, inicia una nueva evaluación o carga uno de los escenarios de prueba.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+
+          <div className="flex flex-wrap gap-2.5">
             <Link
               href="/negocios/demo/ruta"
-              className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-[#0069c7] hover:bg-blue-50"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600"
             >
-              Ver panel de ruta →
+              Abrir ruta y simulador →
             </Link>
-            <Link href="/negocios/nuevo" className="rounded-xl bg-[#0069c7] px-5 py-3 text-sm font-bold text-white hover:bg-[#0058a8]">
+            <Link
+              href="/negocios/nuevo"
+              className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+            >
               {hasDraft || savedContext ? "Continuar o editar cuestionario" : "+ Iniciar cuestionario"}
             </Link>
           </div>
         </div>
 
-        <div className="mt-8 grid gap-5 md:grid-cols-2">
+        <div className="mt-6 grid gap-5 md:grid-cols-2">
           {savedContext ? (
-            <article className="flex flex-col justify-between rounded-3xl border border-blue-200 bg-white p-6 shadow-sm">
+            <article className="flex flex-col justify-between rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
               <div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-2xl">{category?.icon || "✦"}</span>
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                  <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+                    {category?.name || "Mi negocio"}
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                     {taxAdvice?.code ? `Preselección: ${taxAdvice.code}` : "Evaluación guardada"}
                   </span>
                 </div>
-                <h2 className="mt-5 text-2xl font-black text-[#053b78]">{savedContext.businessName}</h2>
-                <p className="mt-1 text-sm font-semibold text-[#1464f6]">
-                  {category?.name || "Negocio"} · {[savedContext.district, savedContext.province, savedContext.department].filter(Boolean).join(", ") || "Perú"}
+
+                <h2 className="mt-4 text-xl font-extrabold text-slate-900">{savedContext.businessName}</h2>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  📍 {[savedContext.district, savedContext.province, savedContext.department].filter(Boolean).join(", ") || "Perú"}
                 </p>
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3.5 text-xs text-slate-600">
+
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-xs">
                   <div>
-                    <span className="block font-bold uppercase text-slate-400">Personería</span>
-                    <span className="font-semibold text-[#10295b]">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Personería</span>
+                    <b className="text-slate-800">
                       {savedContext.legalPerson === "natural"
-                        ? "Persona Natural"
+                        ? "P. Natural"
                         : savedContext.legalPerson === "juridica"
-                        ? "Persona Jurídica"
+                        ? "P. Jurídica"
                         : "Por definir"}
-                    </span>
+                    </b>
                   </div>
                   <div>
-                    <span className="block font-bold uppercase text-slate-400">Ventas / mes</span>
-                    <span className="font-semibold text-[#10295b]">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Ventas/mes</span>
+                    <b className="text-slate-800">
                       S/ {new Intl.NumberFormat("es-PE").format(savedContext.monthlyRevenue || 0)}
-                    </span>
+                    </b>
                   </div>
                   <div>
-                    <span className="block font-bold uppercase text-slate-400">Avance</span>
-                    <span className="font-semibold text-[#10295b]">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Avance</span>
+                    <b className="text-blue-600">
                       {completedSteps}/{steps.length} pasos
-                    </span>
+                    </b>
                   </div>
                 </div>
               </div>
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                <Link href="/negocios/demo/ruta" className="rounded-xl bg-[#1464f6] px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                <Link
+                  href="/negocios/demo/ruta"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                >
                   Abrir mi ruta y simulador →
                 </Link>
-                <Link href="/negocios/nuevo" className="text-sm font-bold text-[#0069c7] hover:underline">
-                  Editar respuestas
+                <Link href="/negocios/nuevo" className="text-xs font-bold text-slate-600 hover:text-blue-600">
+                  Editar respuestas ✎
                 </Link>
               </div>
             </article>
           ) : (
-            <div className="flex flex-col justify-between rounded-3xl border border-blue-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col justify-between rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
               <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#1464f6]">
-                  ✦ Paso recomendado
+                <span className="inline-block rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600">
+                  Evaluación personalizada
                 </span>
-                <h2 className="mt-4 text-2xl font-black text-[#053b78]">Comienza el cuestionario de tu negocio</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Responde preguntas sencillas sobre tu rubro, ubicación en Cajamarca, ventas proyectadas y comprobantes para recibir tu ruta personalizada.
+                <h2 className="mt-3 text-xl font-extrabold text-slate-900">Aún no has guardado un negocio</h2>
+                <p className="mt-1.5 text-xs leading-5 text-slate-600 sm:text-sm">
+                  Responde el cuestionario guiado para descubrir qué régimen tributario se adapta a tu negocio y qué trámites necesitas cumplir.
                 </p>
               </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="/negocios/nuevo" className="rounded-xl bg-[#1464f6] px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
-                  Ir al cuestionario guiado →
+              <div className="mt-5 flex flex-wrap gap-2.5">
+                <Link
+                  href="/negocios/nuevo"
+                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700"
+                >
+                  Empezar cuestionario →
                 </Link>
-                <Link href="/negocios/demo/ruta" className="rounded-xl border border-blue-200 px-4 py-3 text-sm font-bold text-[#0069c7] hover:bg-blue-50">
-                  Ver ruta de demostración
+                <Link
+                  href="/negocios/demo/ruta"
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Ver simulador demo
                 </Link>
               </div>
             </div>
           )}
 
-          <div className="flex min-h-60 flex-col items-center justify-center rounded-3xl border-2 border-dashed border-blue-200 bg-blue-50/70 p-6 text-center">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-2xl font-bold text-[#0069c7] shadow-sm">+</span>
-            <h2 className="mt-3 text-xl font-bold text-[#053b78]">
-              {savedContext || hasDraft ? "Evaluar un nuevo negocio desde cero" : "Simulación limpia desde cero"}
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/60 p-6 text-center">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-lg font-extrabold text-blue-600">
+              +
+            </span>
+            <h2 className="mt-3 text-base font-extrabold text-slate-900">
+              {savedContext || hasDraft ? "Iniciar nueva evaluación limpia" : "Simular un negocio desde cero"}
             </h2>
-            <p className="mt-2 max-w-sm text-sm text-slate-600">
-              Limpia el borrador actual e inicia una nueva evaluación paso a paso para otro giro o idea de negocio.
+            <p className="mt-1 max-w-sm text-xs text-slate-500">
+              Borra las respuestas anteriores y comienza un diagnóstico nuevo paso a paso.
             </p>
             <button
               type="button"
               onClick={startFresh}
-              className="mt-5 rounded-xl border border-blue-300 bg-white px-5 py-2.5 text-sm font-bold text-[#0069c7] shadow-sm hover:bg-blue-50"
+              className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:border-blue-300 hover:text-blue-600"
             >
-              {savedContext || hasDraft ? "Reiniciar y crear nueva evaluación" : "Iniciar cuestionario →"}
+              {savedContext || hasDraft ? "Reiniciar y crear nueva" : "Ir al cuestionario →"}
             </button>
           </div>
         </div>
 
-        {/* Quick Demo Scenarios for Cajamarca */}
-        <section className="mt-10 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#1464f6]">Plantillas rápidas de prueba</p>
-              <h2 className="mt-1 text-2xl font-black text-[#053b78]">Casos prácticos de emprendimientos en Cajamarca</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Carga cualquiera de estos escenarios con un clic para explorar cómo el motor de reglas recomienda NRUS, RER o RMT.
-              </p>
-            </div>
-          </div>
+        {/* Plantillas rápidas */}
+        <section className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Plantillas listas en 1 clic</span>
+          <h2 className="mt-1 text-lg font-extrabold text-slate-900 sm:text-xl">
+            Escenarios empresariales de demostración
+          </h2>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
             {DEMO_PRESETS.map((preset) => (
-              <article key={preset.id} className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/60 p-5 transition hover:border-blue-300 hover:bg-white">
+              <article
+                key={preset.id}
+                className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition hover:border-blue-300 hover:bg-white"
+              >
                 <div>
-                  <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-[#1464f6]">{preset.badge}</span>
-                  <h3 className="mt-3 text-lg font-black text-[#053b78]">{preset.shortTitle}</h3>
-                  <p className="mt-1.5 text-xs leading-5 text-slate-600">{preset.summary}</p>
+                  <span className="inline-block rounded-md bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700">
+                    {preset.badge}
+                  </span>
+                  <h3 className="mt-2.5 text-sm font-extrabold text-slate-900">{preset.shortTitle}</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{preset.summary}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => loadPresetAndOpen(preset)}
-                  className="mt-4 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-[#1464f6] hover:bg-[#1464f6] hover:text-white"
+                  className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-blue-600 transition hover:bg-blue-600 hover:text-white"
                 >
-                  Cargar este caso y ver ruta →
+                  Cargar y abrir en el simulador →
                 </button>
               </article>
             ))}
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
