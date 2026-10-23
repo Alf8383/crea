@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { scopedStorageKey } from "@/lib/account-storage";
+import { DEMO_PRESETS, type DemoPreset } from "@/lib/demo-presets";
 import { getTaxPath } from "@/lib/practical-guides";
 import { categories, rules, sources } from "@/lib/seed-catalog";
 import { RuleEngine } from "@/lib/rule-engine";
@@ -42,6 +43,19 @@ export default function BusinessesPage() {
     router.push("/negocios/nuevo");
   };
 
+  const loadPresetAndOpen = (preset: DemoPreset) => {
+    try {
+      localStorage.setItem(scopedStorageKey("efp-business-context"), JSON.stringify(preset.context));
+      if (preset.context.questionnaire) {
+        localStorage.setItem(
+          scopedStorageKey("efp-questionnaire-draft"),
+          JSON.stringify({ answers: preset.context.questionnaire, section: 4, position: 0 }),
+        );
+      }
+    } catch {}
+    router.push("/negocios/demo/ruta");
+  };
+
   const category = savedContext ? categories.find((item) => item.id === savedContext.sectorId) : undefined;
   const steps = savedContext ? RuleEngine.evaluate(savedContext, rules, sources) : [];
   const completedSteps = steps.filter((item) => statuses[item.requirementId] === "COMPLETADO").length;
@@ -51,17 +65,25 @@ export default function BusinessesPage() {
     <main className="min-h-screen bg-[#f4f8fc]">
       <AppHeader admin />
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm font-bold uppercase tracking-widest text-cyan-700">Mi espacio</p>
+        <p className="text-sm font-bold uppercase tracking-widest text-cyan-700">Mi espacio de emprendimiento</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#053b78]">Tus evaluaciones empresariales</h1>
+            <h1 className="text-3xl font-black text-[#053b78] sm:text-4xl">Tus evaluaciones empresariales</h1>
             <p className="mt-2 text-slate-600">
-              Consulta el diagnóstico de tu negocio, compara regímenes tributarios o inicia una nueva evaluación.
+              Consulta el diagnóstico de tu negocio, compara regímenes tributarios o inicia una evaluación guiada.
             </p>
           </div>
-          <Link href="/negocios/nuevo" className="rounded-xl bg-[#0069c7] px-5 py-3 font-bold text-white hover:bg-[#0058a8]">
-            {hasDraft || savedContext ? "Continuar o editar evaluación" : "+ Nueva evaluación"}
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/negocios/demo/ruta"
+              className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-[#0069c7] hover:bg-blue-50"
+            >
+              Ver panel de ruta →
+            </Link>
+            <Link href="/negocios/nuevo" className="rounded-xl bg-[#0069c7] px-5 py-3 text-sm font-bold text-white hover:bg-[#0058a8]">
+              {hasDraft || savedContext ? "Continuar o editar cuestionario" : "+ Iniciar cuestionario"}
+            </Link>
+          </div>
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-2">
@@ -69,9 +91,7 @@ export default function BusinessesPage() {
             <article className="flex flex-col justify-between rounded-3xl border border-blue-200 bg-white p-6 shadow-sm">
               <div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-2xl">
-                    {category?.icon || "✦"}
-                  </span>
+                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-2xl">{category?.icon || "✦"}</span>
                   <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
                     {taxAdvice?.code ? `Preselección: ${taxAdvice.code}` : "Evaluación guardada"}
                   </span>
@@ -80,9 +100,9 @@ export default function BusinessesPage() {
                 <p className="mt-1 text-sm font-semibold text-[#1464f6]">
                   {category?.name || "Negocio"} · {[savedContext.district, savedContext.province, savedContext.department].filter(Boolean).join(", ") || "Perú"}
                 </p>
-                <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-3.5 text-xs text-slate-600">
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3.5 text-xs text-slate-600">
                   <div>
-                    <span className="block font-bold text-slate-400 uppercase">Personería</span>
+                    <span className="block font-bold uppercase text-slate-400">Personería</span>
                     <span className="font-semibold text-[#10295b]">
                       {savedContext.legalPerson === "natural"
                         ? "Persona Natural"
@@ -92,16 +112,22 @@ export default function BusinessesPage() {
                     </span>
                   </div>
                   <div>
-                    <span className="block font-bold text-slate-400 uppercase">Avance de ruta</span>
+                    <span className="block font-bold uppercase text-slate-400">Ventas / mes</span>
                     <span className="font-semibold text-[#10295b]">
-                      {completedSteps} de {steps.length} pasos completados
+                      S/ {new Intl.NumberFormat("es-PE").format(savedContext.monthlyRevenue || 0)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block font-bold uppercase text-slate-400">Avance</span>
+                    <span className="font-semibold text-[#10295b]">
+                      {completedSteps}/{steps.length} pasos
                     </span>
                   </div>
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                 <Link href="/negocios/demo/ruta" className="rounded-xl bg-[#1464f6] px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">
-                  Ver mi ruta y regímenes →
+                  Abrir mi ruta y simulador →
                 </Link>
                 <Link href="/negocios/nuevo" className="text-sm font-bold text-[#0069c7] hover:underline">
                   Editar respuestas
@@ -109,23 +135,34 @@ export default function BusinessesPage() {
               </div>
             </article>
           ) : (
-            <Link href="/negocios/demo/ruta" className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm transition hover:border-blue-300">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-50 text-xl">✦</span>
-              <h2 className="mt-5 text-xl font-bold text-[#053b78]">Explorar ruta de demostración</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Aún no has completado el cuestionario. Abre el escenario de ejemplo en Cajamarca o inicia tu propia evaluación.
-              </p>
-              <p className="mt-6 text-sm font-bold text-[#0069c7]">Ver ejemplo →</p>
-            </Link>
+            <div className="flex flex-col justify-between rounded-3xl border border-blue-200 bg-white p-6 shadow-sm">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#1464f6]">
+                  ✦ Paso recomendado
+                </span>
+                <h2 className="mt-4 text-2xl font-black text-[#053b78]">Comienza el cuestionario de tu negocio</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Responde preguntas sencillas sobre tu rubro, ubicación en Cajamarca, ventas proyectadas y comprobantes para recibir tu ruta personalizada.
+                </p>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/negocios/nuevo" className="rounded-xl bg-[#1464f6] px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
+                  Ir al cuestionario guiado →
+                </Link>
+                <Link href="/negocios/demo/ruta" className="rounded-xl border border-blue-200 px-4 py-3 text-sm font-bold text-[#0069c7] hover:bg-blue-50">
+                  Ver ruta de demostración
+                </Link>
+              </div>
+            </div>
           )}
 
           <div className="flex min-h-60 flex-col items-center justify-center rounded-3xl border-2 border-dashed border-blue-200 bg-blue-50/70 p-6 text-center">
-            <span className="text-3xl font-bold text-[#0069c7]">+</span>
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-2xl font-bold text-[#0069c7] shadow-sm">+</span>
             <h2 className="mt-3 text-xl font-bold text-[#053b78]">
-              {savedContext || hasDraft ? "Evaluar un nuevo negocio desde cero" : "Comenzar mi evaluación"}
+              {savedContext || hasDraft ? "Evaluar un nuevo negocio desde cero" : "Simulación limpia desde cero"}
             </h2>
             <p className="mt-2 max-w-sm text-sm text-slate-600">
-              Responde preguntas simples sobre tu actividad, ingresos estimados y forma de operar para conocer tu régimen tributario y requisitos.
+              Limpia el borrador actual e inicia una nueva evaluación paso a paso para otro giro o idea de negocio.
             </p>
             <button
               type="button"
@@ -136,6 +173,38 @@ export default function BusinessesPage() {
             </button>
           </div>
         </div>
+
+        {/* Quick Demo Scenarios for Cajamarca */}
+        <section className="mt-10 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#1464f6]">Plantillas rápidas de prueba</p>
+              <h2 className="mt-1 text-2xl font-black text-[#053b78]">Casos prácticos de emprendimientos en Cajamarca</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Carga cualquiera de estos escenarios con un clic para explorar cómo el motor de reglas recomienda NRUS, RER o RMT.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {DEMO_PRESETS.map((preset) => (
+              <article key={preset.id} className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/60 p-5 transition hover:border-blue-300 hover:bg-white">
+                <div>
+                  <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-[#1464f6]">{preset.badge}</span>
+                  <h3 className="mt-3 text-lg font-black text-[#053b78]">{preset.shortTitle}</h3>
+                  <p className="mt-1.5 text-xs leading-5 text-slate-600">{preset.summary}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadPresetAndOpen(preset)}
+                  className="mt-4 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-[#1464f6] hover:bg-[#1464f6] hover:text-white"
+                >
+                  Cargar este caso y ver ruta →
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );
