@@ -919,27 +919,13 @@ export function RouteDashboard() {
           </header>
 
           <div className="mx-auto max-w-6xl px-5 py-7 sm:px-10">
-            {/* Demo Scenario Selector Bar */}
+            {/* Compact Demo Scenario Selector Bar */}
             {isExample && (
-              <section className="mb-6 rounded-3xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-5 shadow-sm print:hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#1464f6] px-3 py-1 text-xs font-bold text-white">
-                      ✦ Ruta de demostración en Cajamarca
-                    </span>
-                    <h2 className="mt-2 text-lg font-black text-[#071c56]">
-                      Explora 3 casos reales preconfigurados o responde el cuestionario para tu negocio
-                    </h2>
-                  </div>
-                  <Link
-                    href="/negocios/nuevo"
-                    className="rounded-xl bg-[#0a318c] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#1464f6]"
-                  >
-                    Iniciar mi propio cuestionario →
-                  </Link>
-                </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-sm print:hidden">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#1464f6]">
+                    ✦ Casos demo:
+                  </span>
                   {DEMO_PRESETS.map((preset) => {
                     const active = activePresetId === preset.id;
                     return (
@@ -948,24 +934,23 @@ export function RouteDashboard() {
                         type="button"
                         onClick={() => switchPreset(preset.id)}
                         className={
-                          "flex flex-col justify-between rounded-2xl border p-4 text-left transition " +
+                          "rounded-xl px-3.5 py-1.5 text-xs font-bold transition " +
                           (active
-                            ? "border-[#1464f6] bg-white shadow-md ring-2 ring-blue-200"
-                            : "border-blue-100 bg-white/70 hover:border-blue-300 hover:bg-white")
+                            ? "bg-[#1464f6] text-white shadow-sm"
+                            : "bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-[#1464f6]")
                         }
                       >
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-[#1464f6]">{preset.badge}</span>
-                            {active && <span className="text-xs font-bold text-emerald-600">● Activo</span>}
-                          </div>
-                          <p className="mt-2 font-black text-[#071c56]">{preset.shortTitle}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-600">{preset.summary}</p>
-                        </div>
+                        {preset.shortTitle} ({preset.targetRegime})
                       </button>
                     );
                   })}
                 </div>
+                <Link
+                  href="/negocios/nuevo"
+                  className="text-xs font-bold text-[#1464f6] underline hover:text-[#0a318c]"
+                >
+                  Hacer mi propio cuestionario →
+                </Link>
               </section>
             )}
 
@@ -1229,9 +1214,19 @@ export function RouteDashboard() {
                       </div>
                     </section>
 
-                    {/* Orientation Panels (CIIU, Personería, RUC) */}
-                    <BusinessSetupAdvicePanel context={context} />
-                    {context.legalPerson === "aun-no-se" && <LegalFormRecommendationPanel context={context} />}
+                    {/* Collapsible Orientation Panels (CIIU, Personería, RUC) */}
+                    <details className="group rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between font-bold text-[#071c56]">
+                        <span>💡 Ver orientación adicional sobre código CIIU, personería y RUC</span>
+                        <span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-bold text-[#1464f6] group-open:hidden">
+                          Mostrar detalle
+                        </span>
+                      </summary>
+                      <div className="mt-2">
+                        <BusinessSetupAdvicePanel context={context} />
+                        {context.legalPerson === "aun-no-se" && <LegalFormRecommendationPanel context={context} />}
+                      </div>
+                    </details>
                   </div>
                 )}
 
