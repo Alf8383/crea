@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ACTIVE_ACCOUNT_KEY, getDemoAccounts, scopedStorageKey, type LocalAccount } from "@/lib/account-storage";
-import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { getFirebaseAuth } from "@/lib/firebase/client";
+import { signOut } from "firebase/auth";
 
 export function AppHeader({
   rightActions,
@@ -40,8 +41,8 @@ export function AppHeader({
 
   const logout = async () => {
     try {
-      const supabase = getSupabaseBrowser();
-      if (supabase) await supabase.auth.signOut();
+      const auth = getFirebaseAuth();
+      if (auth) await signOut(auth);
     } catch {}
     localStorage.removeItem(ACTIVE_ACCOUNT_KEY);
     setAccount(null);

@@ -1,0 +1,35 @@
+# Configuración para Firebase App Hosting (Google Cloud Run)
+# Documentación: https://firebase.google.com/docs/app-hosting/configure
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  memoryMiB: 512
+  cpu: 1
+
+# Variables de entorno para Firebase en producción
+# También puedes administrarlas en la consola de Firebase > App Hosting > Variables de entorno
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    availability:
+      - BUILD
+      - RUNTIME

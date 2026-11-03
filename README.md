@@ -15,7 +15,9 @@ A través de un cuestionario interactivo de cinco etapas y un motor de reglas de
 | **Framework Web** | Next.js (App Router) con React y TypeScript |
 | **Estilos y UI** | Tailwind CSS |
 | **Motor de Reglas** | Motor de decisión en TypeScript puro desacoplado de la UI (`src/lib/rule-engine.ts`) |
-| **Base de Datos** | Supabase (PostgreSQL) con políticas de acceso por fila (RLS) |
+| **Infraestructura Cloud** | Google Cloud / Firebase (Firebase App Hosting, Cloud Run) |
+| **Autenticación** | Firebase Authentication (Email/Password y Google Sign-In) |
+| **Base de Datos** | Cloud Firestore (NoSQL) con reglas de seguridad (`firestore.rules`) |
 | **Testing** | Vitest para pruebas unitarias automatizadas |
 
 ---
@@ -31,10 +33,12 @@ A través de un cuestionario interactivo de cinco etapas y un motor de reglas de
 │   │   ├── requisitos/     # Fichas técnicas de obligaciones y trámites
 │   │   └── admin/          # Consola de administración y catálogo de fuentes
 │   ├── components/         # Componentes modulares de interfaz (asistente, dashboard, guías)
-│   └── lib/                # Motor de reglas de decisión, catálogo tributario y utilidades
-├── supabase/               # Esquema de base de datos relacional y scripts de inicialización
-│   ├── migrations/         # Migraciones SQL estructuradas (tablas, RLS, triggers)
-│   └── seed.sql            # Datos iniciales (instituciones, CIIU, fuentes normativas)
+│   └── lib/                # Motor de reglas de decisión, catálogo tributario y módulos de Firebase
+│       ├── firebase/       # Conexión con Firebase Auth, Firestore y utilidades
+│       ├── rule-engine.ts  # Motor de decisión tributaria determinístico
+│       └── seed-catalog.ts # Catálogo oficial normativo y tributario
+├── apphosting.yaml         # Configuración para Firebase App Hosting (Google Cloud Run)
+├── firestore.rules         # Reglas de seguridad declarativas para Cloud Firestore
 └── tests/                  # Pruebas unitarias automatizadas del motor de reglas
 ```
 
@@ -58,13 +62,17 @@ Copia el archivo de ejemplo a un archivo local:
 cp .env.example .env.local
 ```
 
-Configura las variables de tu instancia de Supabase en `.env.local`:
+Configura las variables de tu proyecto de Firebase en `.env.local`:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-clave-publica-anon
+NEXT_PUBLIC_FIREBASE_API_KEY=tu_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=tu-proyecto.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=tu-proyecto
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=tu-proyecto.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=tu_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=tu_app_id
 ```
 
-> **Nota:** La aplicación cuenta con un modo de demostración local tolerante que permite explorar el cuestionario, evaluar las reglas de decisión y generar la ruta de formalización incluso sin conexión a Supabase.
+> **Nota:** La aplicación cuenta con un modo de demostración local tolerante que permite explorar el cuestionario, evaluar las reglas de decisión y generar la ruta de formalización incluso sin conexión activa a Firebase.
 
 ### 3. Ejecutar el servidor de desarrollo
 
@@ -84,19 +92,24 @@ El proyecto incluye pruebas unitarias para certificar la precisión del motor de
 
 ```bash
 # Ejecutar suite de pruebas unitarias
-npx vitest run
+pnpm test
 
 # Análisis estático de código (linter)
-npm run lint
+pnpm lint
 
 # Compilación para producción
-npm run build
+pnpm build
 ```
 
 ---
 
-## 🗄️ Base de Datos (Supabase)
+## ☁️ Despliegue en Firebase App Hosting (Google Cloud)
 
-Para desplegar la base de datos completa:
-1. En el editor SQL de Supabase, ejecuta [`supabase/migrations/20261001000000_initial_schema.sql`](supabase/migrations/20261001000000_initial_schema.sql) para crear las tablas, relaciones y políticas RLS.
-2. Ejecuta [`supabase/seed.sql`](supabase/seed.sql) para cargar las fuentes oficiales, entidades públicas y actividades económicas.
+Para desplegar tu proyecto en Google Cloud con Firebase App Hosting:
+
+1. Ve a [Firebase Console](https://console.firebase.google.com/) y crea un nuevo proyecto (o usa uno existente con plan Blaze habilitado).
+2. En la barra lateral, ve a **Build** > **App Hosting**.
+3. Haz clic en **Comenzar** y conecta tu cuenta de GitHub con este repositorio (`Alf8383/crea`).
+4. Selecciona la rama `main`.
+5. En la sección de configuración de entorno, ingresa las variables del archivo `.env.local`.
+6. Haz clic en **Implementar**. Firebase compilará y desplegará Next.js automáticamente en Google Cloud Run con CDN global y certificado SSL HTTPS.

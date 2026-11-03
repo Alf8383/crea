@@ -83,9 +83,23 @@ export function activateDemoAccount(email: string): LocalAccount | null {
   return account;
 }
 
-export function activateAccount(email: string) {
-  const id = accountId(email);
+export function activateAccount(email: string, name?: string) {
+  const normalizedEmail = email.trim().toLocaleLowerCase("en-US");
+  const id = accountId(normalizedEmail);
   localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
+  if (name) {
+    try {
+      const accounts = getDemoAccounts();
+      const existingIndex = accounts.findIndex(a => a.email === normalizedEmail);
+      if (existingIndex >= 0) {
+        accounts[existingIndex].name = name.trim();
+        localStorage.setItem(DEMO_ACCOUNTS_KEY, JSON.stringify(accounts));
+      } else {
+        accounts.push({ id, email: normalizedEmail, name: name.trim() });
+        localStorage.setItem(DEMO_ACCOUNTS_KEY, JSON.stringify(accounts));
+      }
+    } catch {}
+  }
   for (const key of LEGACY_DATA_KEYS) {
     const guestData = localStorage.getItem(`${key}:guest`);
     const userKey = `${key}:${id}`;

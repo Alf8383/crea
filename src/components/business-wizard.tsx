@@ -10,6 +10,7 @@ import { getTaxPath } from "@/lib/practical-guides";
 import { sectionNames, visibleQuestions, type Answers, type Question } from "@/lib/questionnaire";
 import { RuleEngine } from "@/lib/rule-engine";
 import { activities, rules, sources } from "@/lib/seed-catalog";
+import { saveBusinessToFirestore } from "@/lib/firebase/businesses";
 import type { BusinessContext } from "@/lib/types";
 
 const draftKey = "efp-questionnaire-draft";
@@ -898,14 +899,19 @@ export function BusinessWizard() {
     localStorage.setItem(accountContextKey, JSON.stringify(context));
     let targetPath = "/negocios/demo/ruta";
     try {
-      const res = await fetch("/api/businesses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(context),
-      });
-      if (res.ok) {
-        const body = await res.json();
-        if (body?.id) targetPath = `/negocios/${body.id}/ruta`;
+      const firestoreId = await saveBusinessToFirestore(context);
+      if (firestoreId) {
+        targetPath = `/negocios/${firestoreId}/ruta`;
+      } else {
+        const res = await fetch("/api/businesses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(context),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body?.id) targetPath = `/negocios/${body.id}/ruta`;
+        }
       }
     } catch {
     } finally {
