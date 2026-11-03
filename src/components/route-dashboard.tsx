@@ -723,35 +723,18 @@ export function RouteDashboard() {
 
   const evaluateContext = (targetContext: BusinessContext, exampleMode: boolean) => {
     setLoading(true);
-    fetch("/api/diagnostics/evaluate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(targetContext),
-    })
-      .then((response) => response.json())
-      .then((body) => {
-        setContext(targetContext);
-        setResults(body.results || []);
-        setTaxes(body.taxRecommendations || []);
-        setIsExample(exampleMode);
-        const advice = getTaxPath(targetContext);
-        setSelected(
-          advice.code ||
-            body.taxRecommendations?.find((item: TaxRecommendation) => item.status === "COMPATIBLE")?.code ||
-            "NRUS",
-        );
-      })
-      .catch(() => {
-        const localResults = RuleEngine.evaluate(targetContext, rules, sources);
-        const localTaxes = RuleEngine.recommendTax(targetContext, "sunat-regimes", "VIGENTE");
-        const advice = getTaxPath(targetContext);
-        setContext(targetContext);
-        setResults(localResults);
-        setTaxes(localTaxes);
-        setIsExample(exampleMode);
-        setSelected(advice.code || localTaxes.find((item) => item.status === "COMPATIBLE")?.code || "NRUS");
-      })
-      .finally(() => setLoading(false));
+    try {
+      const localResults = RuleEngine.evaluate(targetContext, rules, sources);
+      const localTaxes = RuleEngine.recommendTax(targetContext, "sunat-regimes", "VIGENTE");
+      const advice = getTaxPath(targetContext);
+      setContext(targetContext);
+      setResults(localResults);
+      setTaxes(localTaxes);
+      setIsExample(exampleMode);
+      setSelected(advice.code || localTaxes.find((item) => item.status === "COMPATIBLE")?.code || "NRUS");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

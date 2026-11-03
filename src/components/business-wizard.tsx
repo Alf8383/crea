@@ -902,16 +902,6 @@ export function BusinessWizard() {
       const firestoreId = await saveBusinessToFirestore(context);
       if (firestoreId) {
         targetPath = `/negocios/${firestoreId}/ruta`;
-      } else {
-        const res = await fetch("/api/businesses", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(context),
-        });
-        if (res.ok) {
-          const body = await res.json();
-          if (body?.id) targetPath = `/negocios/${body.id}/ruta`;
-        }
       }
     } catch {
     } finally {

@@ -1,2 +1,9 @@
 import { RouteDashboard } from "@/components/route-dashboard";
-export default function RoutePage() { return <RouteDashboard />; }
+
+export function generateStaticParams() {
+  return [{ id: "demo" }];
+}
+
+export default function RoutePage() {
+  return <RouteDashboard />;
+}
