@@ -101,15 +101,4 @@ pnpm lint
 pnpm build
 ```
 
----
 
-## ☁️ Despliegue en Firebase App Hosting (Google Cloud)
-
-Para desplegar tu proyecto en Google Cloud con Firebase App Hosting:
-
-1. Ve a [Firebase Console](https://console.firebase.google.com/) y crea un nuevo proyecto (o usa uno existente con plan Blaze habilitado).
-2. En la barra lateral, ve a **Build** > **App Hosting**.
-3. Haz clic en **Comenzar** y conecta tu cuenta de GitHub con este repositorio (`Alf8383/crea`).
-4. Selecciona la rama `main`.
-5. En la sección de configuración de entorno, ingresa las variables del archivo `.env.local`.
-6. Haz clic en **Implementar**. Firebase compilará y desplegará Next.js automáticamente en Google Cloud Run con CDN global y certificado SSL HTTPS.
