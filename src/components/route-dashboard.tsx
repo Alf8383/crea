@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader, type MainMenuSection } from "@/components/app-header";
 import { scopedStorageKey } from "@/lib/account-storage";
-import { askCreaIa, getCreaIaMetricsLog, type CreaIaResponse } from "@/lib/crea-ia";
+import {
+  askCreaIa,
+  getCreaIaMetricsLog,
+  type CreaIaResponse,
+} from "@/lib/crea-ia";
 import { DEMO_PRESETS } from "@/lib/demo-presets";
 import { practicalGuides } from "@/lib/practical-guides";
 import {
@@ -27,6 +31,15 @@ const STATUS_BADGE: Record<
   COMPATIBLE: "bg-emerald-100 text-emerald-800 border-emerald-200",
   INCOMPATIBLE: "bg-rose-100 text-rose-800 border-rose-200",
   INFORMACION_INSUFICIENTE: "bg-amber-100 text-amber-900 border-amber-200",
+};
+
+const STATUS_LABEL: Record<
+  "COMPATIBLE" | "INCOMPATIBLE" | "INFORMACION_INSUFICIENTE",
+  string
+> = {
+  COMPATIBLE: "COMPATIBLE",
+  INCOMPATIBLE: "INCOMPATIBLE",
+  INFORMACION_INSUFICIENTE: "FALTAN DATOS",
 };
 
 const QUICK_CREA_IA_QUESTIONS = [
@@ -71,7 +84,6 @@ export function RouteDashboard() {
     "TODAS" | "COMPRENSION" | "EVALUACION" | "CUMPLIMIENTO"
   >("TODAS");
 
-  // Cargar contexto y sección desde URL / localStorage
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -114,7 +126,6 @@ export function RouteDashboard() {
     } catch {}
   }, []);
 
-  // Registrar intervención en el módulo de investigación académica cuando cambia de sección
   useEffect(() => {
     try {
       const activeParticipant = localStorage.getItem(
@@ -265,13 +276,13 @@ export function RouteDashboard() {
         onSelectSection={handleSelectSection}
       />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8">
-        {/* Top Restaurant Context Banner & Preset Switcher */}
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-2xs">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Top Restaurant Context Banner & KPI Strip */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-2xs sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-extrabold text-blue-700">
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-extrabold text-blue-700">
                   🍽️ {context.businessName || "Mi Restaurante"}
                 </span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
@@ -281,34 +292,71 @@ export function RouteDashboard() {
                   Régimen actual: {context.currentRegime || "Por definir"}
                 </span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                  CIIU {context.ciiu || "5610"} · {context.district || "Cajamarca"}
+                  CIIU {context.ciiu || "5610"} ·{" "}
+                  {context.district || "Cajamarca"}
                 </span>
               </div>
-              <p className="mt-1.5 text-xs text-slate-500">
-                Ventas: S/ {(context.monthlyRevenue ?? 0).toLocaleString("es-PE")}/mes · Compras totales: S/ {(context.monthlyPurchases ?? 0).toLocaleString("es-PE")}/mes · Locales: {context.establishmentCount ?? 1} · Personal/turno: {context.employees ?? 0} · Activos: S/ {(context.fixedAssetsValue ?? 0).toLocaleString("es-PE")}
-              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <Link
                 href="/negocios/nuevo"
-                className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+                className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
               >
                 ✎ Editar ficha «Mi restaurante»
               </Link>
               <button
                 type="button"
                 onClick={() => downloadDiagnosticReportPdf(context)}
-                className="rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
               >
                 ⬇ Descargar Reporte PDF
               </button>
             </div>
           </div>
 
+          {/* Clean 4-Metric KPI Summary Strip */}
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-3.5 py-2.5">
+              <span className="block text-[11px] font-semibold text-slate-500">
+                Ventas mensuales
+              </span>
+              <span className="mt-0.5 block text-sm font-extrabold text-slate-900">
+                S/ {(context.monthlyRevenue ?? 0).toLocaleString("es-PE")} / mes
+              </span>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-3.5 py-2.5">
+              <span className="block text-[11px] font-semibold text-slate-500">
+                Compras mensuales
+              </span>
+              <span className="mt-0.5 block text-sm font-extrabold text-slate-900">
+                S/ {(context.monthlyPurchases ?? 0).toLocaleString("es-PE")} /
+                mes
+              </span>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-3.5 py-2.5">
+              <span className="block text-[11px] font-semibold text-slate-500">
+                Locales y personal/turno
+              </span>
+              <span className="mt-0.5 block text-sm font-extrabold text-slate-900">
+                {context.establishmentCount ?? 1} local(es) ·{" "}
+                {context.employees ?? 0} trab./turno
+              </span>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-3.5 py-2.5">
+              <span className="block text-[11px] font-semibold text-slate-500">
+                Activos fijos y facturas
+              </span>
+              <span className="mt-0.5 block text-sm font-extrabold text-slate-900">
+                S/ {(context.fixedAssetsValue ?? 0).toLocaleString("es-PE")} ·{" "}
+                {context.needsFacturas ? "Con Factura" : "Solo Boleta"}
+              </span>
+            </div>
+          </div>
+
           {/* Quick Demo Restaurant Switcher */}
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-            <span className="text-[11px] font-bold text-slate-500">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3.5">
+            <span className="text-xs font-bold text-slate-500">
               Casos de prueba en Cajamarca:
             </span>
             {DEMO_PRESETS.map((preset) => (
@@ -317,10 +365,10 @@ export function RouteDashboard() {
                 type="button"
                 onClick={() => applyPreset(preset.context)}
                 className={
-                  "rounded-lg border px-2.5 py-1 text-[11px] font-bold transition " +
+                  "rounded-xl border px-3 py-1.5 text-xs font-bold transition " +
                   (context.businessName === preset.context.businessName
-                    ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300")
+                    ? "border-blue-600 bg-blue-600 text-white shadow-2xs"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-white")
                 }
               >
                 {preset.shortTitle}
@@ -336,11 +384,12 @@ export function RouteDashboard() {
           <div className="mt-6 space-y-6">
             {/* Current Regime Compliance Evaluation Card */}
             {evaluation.currentRegimeDiagnostic && (
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                      1. Evaluación del Régimen Tributario Actual del Restaurante
+                      1. Evaluación del Régimen Tributario Actual del
+                      Restaurante
                     </span>
                     <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
                       Régimen actual:{" "}
@@ -357,7 +406,7 @@ export function RouteDashboard() {
                   </span>
                 </div>
 
-                <p className="mt-2 text-sm leading-relaxed text-slate-700">
+                <p className="mt-2.5 text-sm leading-relaxed text-slate-700">
                   {evaluation.currentRegimeDiagnostic.summary}
                 </p>
 
@@ -396,7 +445,7 @@ export function RouteDashboard() {
             )}
 
             {/* 4 Regimes Evaluation Grid */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
@@ -412,7 +461,7 @@ export function RouteDashboard() {
                 </span>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-5 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
                 {evaluation.taxRecommendations.map((rec) => {
                   const active = rec.regime === selectedRegimeInspector;
                   return (
@@ -434,17 +483,17 @@ export function RouteDashboard() {
                           </span>
                           <span
                             className={
-                              "rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold " +
+                              "shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold " +
                               STATUS_BADGE[rec.status]
                             }
                           >
-                            {rec.status}
+                            {STATUS_LABEL[rec.status]}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs font-bold text-slate-700">
+                        <p className="mt-1 text-xs font-bold text-slate-800">
                           {rec.name}
                         </p>
-                        <p className="mt-2 text-xs leading-5 text-slate-600">
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
                           {rec.status === "COMPATIBLE"
                             ? rec.reasons[0]
                             : rec.status === "INCOMPATIBLE"
@@ -452,8 +501,8 @@ export function RouteDashboard() {
                               : rec.missingDataFields[0]}
                         </p>
                       </div>
-                      <span className="mt-3 inline-block text-[11px] font-bold text-blue-600">
-                        Ver reglas evaluadas ({rec.evaluatedRules.length}) →
+                      <span className="mt-3.5 inline-block text-xs font-bold text-blue-600">
+                        Inspeccionar reglas ({rec.evaluatedRules.length}) →
                       </span>
                     </button>
                   );
@@ -462,8 +511,8 @@ export function RouteDashboard() {
 
               {/* Detailed Rule Traceability Table for Selected Regime */}
               {selectedRegimeRec && (
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3.5">
                     <div>
                       <h3 className="text-base font-extrabold text-slate-900">
                         Trazabilidad de reglas evaluadas:{" "}
@@ -491,8 +540,8 @@ export function RouteDashboard() {
                         className="rounded-2xl border border-slate-200 bg-white p-4"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-extrabold text-slate-700">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-extrabold text-slate-700">
                               {ruleItem.ruleId} · v{ruleItem.version}
                             </span>
                             <h4 className="text-sm font-extrabold text-slate-900">
@@ -501,7 +550,7 @@ export function RouteDashboard() {
                           </div>
                           <span
                             className={
-                              "rounded-full px-2.5 py-0.5 text-[11px] font-extrabold " +
+                              "rounded-full px-3 py-0.5 text-xs font-extrabold " +
                               (ruleItem.passed === true
                                 ? "bg-emerald-100 text-emerald-800"
                                 : ruleItem.passed === false
@@ -517,16 +566,16 @@ export function RouteDashboard() {
                           </span>
                         </div>
 
-                        <p className="mt-2 text-xs leading-5 text-slate-700">
+                        <p className="mt-2 text-xs leading-relaxed text-slate-700">
                           {ruleItem.explanation}
                         </p>
 
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500">
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
                           <span>
                             <strong>Fundamento oficial:</strong>{" "}
-                            {ruleItem.legalBasis} |{" "}
-                            <strong>Vigencia:</strong> {ruleItem.effectiveDate}{" "}
-                            | <strong>Revisión:</strong> {ruleItem.reviewedAt} (
+                            {ruleItem.legalBasis} · <strong>Vigencia:</strong>{" "}
+                            {ruleItem.effectiveDate} ·{" "}
+                            <strong>Revisión:</strong> {ruleItem.reviewedAt} (
                             {ruleItem.sourceVerification})
                           </span>
                           <a
@@ -553,8 +602,8 @@ export function RouteDashboard() {
         {section === "simulador" && (
           <div className="mt-6 space-y-6">
             {/* Interactive Simulator Controls */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
                     Módulo: Comparador y Simulador Tributario para Restaurantes
@@ -572,14 +621,14 @@ export function RouteDashboard() {
                     setSimPurchasesNoInv(undefined);
                     setSimExpenses(undefined);
                   }}
-                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
                 >
                   Restaurar datos de mi ficha
                 </button>
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <label className="block text-xs font-bold text-slate-700">
                     Ventas brutas mensuales (S/)
                   </label>
@@ -588,16 +637,16 @@ export function RouteDashboard() {
                     min={0}
                     value={simulation.inputsUsed.grossMonthlySales}
                     onChange={(e) => setSimSales(Number(e.target.value))}
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
                   />
-                  <span className="mt-1 block text-[11px] text-slate-500">
-                    Ventas sin IGV: S/{" "}
-                    {simulation.regimes.RER.netMonthlySales.toFixed(2)} | IGV
-                    ventas: S/ {simulation.regimes.RER.igvSales.toFixed(2)}
+                  <span className="mt-1.5 block text-[11px] text-slate-600">
+                    Sin IGV: S/{" "}
+                    {simulation.regimes.RER.netMonthlySales.toFixed(2)} · IGV:
+                    S/ {simulation.regimes.RER.igvSales.toFixed(2)}
                   </span>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <label className="block text-xs font-bold text-slate-700">
                     Compras insumos CON Factura (S/)
                   </label>
@@ -608,15 +657,15 @@ export function RouteDashboard() {
                       simulation.inputsUsed.grossMonthlyPurchasesWithInvoice
                     }
                     onChange={(e) => setSimPurchasesInv(Number(e.target.value))}
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
                   />
-                  <span className="mt-1 block text-[11px] text-emerald-700">
+                  <span className="mt-1.5 block text-[11px] font-semibold text-emerald-700">
                     Crédito fiscal IGV: S/{" "}
                     {simulation.regimes.RER.igvCreditFromPurchases.toFixed(2)}
                   </span>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <label className="block text-xs font-bold text-slate-700">
                     Compras SIN Factura / Boleta (S/)
                   </label>
@@ -627,14 +676,14 @@ export function RouteDashboard() {
                     onChange={(e) =>
                       setSimPurchasesNoInv(Number(e.target.value))
                     }
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
                   />
-                  <span className="mt-1 block text-[11px] text-amber-700">
+                  <span className="mt-1.5 block text-[11px] font-semibold text-amber-700">
                     Crédito fiscal IGV: S/ 0.00 (no deduce IGV)
                   </span>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <label className="block text-xs font-bold text-slate-700">
                     Gastos operativos formales/mes (S/)
                   </label>
@@ -643,16 +692,16 @@ export function RouteDashboard() {
                     min={0}
                     value={simulation.inputsUsed.monthlyOperatingExpenses}
                     onChange={(e) => setSimExpenses(Number(e.target.value))}
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
                   />
-                  <span className="mt-1 block text-[11px] text-slate-500">
-                    Planilla, alquiler y servicios (deducen Renta Anual RMT/RG)
+                  <span className="mt-1.5 block text-[11px] text-slate-600">
+                    Planilla, alquiler y servicios (deducen RMT/RG)
                   </span>
                 </div>
               </div>
 
-              {/* Simulation Cards for the 4 Regimes */}
-              <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Spacious 2-Column Simulation Cards for the 4 Regimes */}
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
                 {(["NRUS", "RER", "RMT", "RG"] as TaxRegimeCode[]).map(
                   (code) => {
                     const sim = simulation.regimes[code];
@@ -664,60 +713,66 @@ export function RouteDashboard() {
                       <article
                         key={code}
                         className={
-                          "flex flex-col justify-between rounded-2xl border p-4 " +
+                          "flex flex-col justify-between rounded-2xl border p-5 " +
                           (isCompat
-                            ? "border-emerald-200 bg-white"
-                            : "border-slate-200 bg-slate-50/70 opacity-80")
+                            ? "border-emerald-200 bg-white shadow-2xs"
+                            : "border-slate-200 bg-slate-50/70")
                         }
                       >
                         <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-extrabold text-slate-900">
-                              {code}
-                            </span>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <span className="text-xs font-extrabold uppercase text-blue-600">
+                                {code}
+                              </span>
+                              <h3 className="text-base font-extrabold text-slate-900">
+                                {sim.regimeName}
+                              </h3>
+                            </div>
                             <span
                               className={
-                                "rounded-full border px-2 py-0.5 text-[10px] font-extrabold " +
+                                "rounded-full border px-3 py-0.5 text-xs font-extrabold " +
                                 STATUS_BADGE[
                                   diag?.status || "INFORMACION_INSUFICIENTE"
                                 ]
                               }
                             >
-                              {diag?.status}
+                              {STATUS_LABEL[
+                                diag?.status || "INFORMACION_INSUFICIENTE"
+                              ]}
                             </span>
                           </div>
-                          <h3 className="mt-1 text-xs font-bold text-slate-700">
-                            {sim.regimeName}
-                          </h3>
 
                           {sim.canEstimate ? (
-                            <div className="mt-3 space-y-1.5 rounded-xl bg-slate-50 p-3 text-xs">
+                            <div className="mt-4 space-y-2 rounded-xl border border-slate-200/80 bg-slate-50 p-3.5 text-xs">
                               <div className="flex justify-between">
                                 <span className="text-slate-600">
-                                  IGV mensual neto:
+                                  IGV mensual neto estimado:
                                 </span>
-                                <span className="font-bold">
+                                <span className="font-bold text-slate-900">
                                   S/ {sim.monthlyIgvPayable.toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-slate-600">
-                                  Renta / Cuota mensual:
+                                  Renta / Cuota mensual estimada:
                                 </span>
-                                <span className="font-bold">
+                                <span className="font-bold text-slate-900">
                                   S/ {sim.monthlyIncomeTaxPayable.toFixed(2)}
                                 </span>
                               </div>
-                              <div className="flex justify-between border-t border-slate-200 pt-1.5 text-sm font-extrabold text-blue-700">
-                                <span>Total mensual est.:</span>
+                              <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-extrabold text-blue-700">
+                                <span>Total mensual estimado:</span>
                                 <span>
                                   S/ {sim.totalMonthlyTaxEstimated.toFixed(2)}
                                 </span>
                               </div>
                               {(code === "RMT" || code === "RG") && (
-                                <div className="flex justify-between pt-1 text-[11px] text-slate-600">
-                                  <span>Regularización anual est.:</span>
-                                  <span className="font-semibold">
+                                <div className="flex justify-between pt-1 text-xs text-slate-600">
+                                  <span>
+                                    Regularización anual de Renta est.:
+                                  </span>
+                                  <span className="font-bold text-slate-800">
                                     S/{" "}
                                     {sim.estimatedAnnualIncomeTaxRegularization.toFixed(
                                       2
@@ -727,19 +782,19 @@ export function RouteDashboard() {
                               )}
                             </div>
                           ) : (
-                            <p className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-800">
+                            <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-medium text-rose-800">
                               {sim.insufficientDataReason}
                             </p>
                           )}
 
-                          <ul className="mt-3 space-y-1 text-[11px] leading-4 text-slate-600">
+                          <ul className="mt-3.5 space-y-1.5 text-xs leading-relaxed text-slate-600">
                             {sim.calculationExplanation.map((exp) => (
                               <li key={exp}>• {exp}</li>
                             ))}
                           </ul>
                         </div>
 
-                        <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-500">
+                        <p className="mt-4 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
                           {sim.legalNote}
                         </p>
                       </article>
@@ -754,7 +809,7 @@ export function RouteDashboard() {
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
                     Supuestos utilizados en la simulación
                   </h3>
-                  <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                  <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600">
                     {simulation.assumptions.map((a) => (
                       <li key={a}>• {a}</li>
                     ))}
@@ -773,7 +828,7 @@ export function RouteDashboard() {
             </section>
 
             {/* Comparative Matrix of Legal Requirements, Limits, Comprobantes & Declarations */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
               <h3 className="text-lg font-extrabold text-slate-900">
                 Tabla comparativa de requisitos, límites, comprobantes y
                 declaraciones
@@ -786,91 +841,101 @@ export function RouteDashboard() {
                 </strong>
               </p>
 
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full border-collapse text-left text-xs">
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[720px] border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-800">
-                      <th className="p-3 font-extrabold">Criterio</th>
-                      <th className="p-3 font-extrabold">Nuevo RUS (NRUS)</th>
-                      <th className="p-3 font-extrabold">
+                    <tr className="border-b border-slate-200 bg-slate-100 text-slate-800">
+                      <th className="p-3.5 font-extrabold">Criterio</th>
+                      <th className="p-3.5 font-extrabold">Nuevo RUS (NRUS)</th>
+                      <th className="p-3.5 font-extrabold">
                         Régimen Especial (RER)
                       </th>
-                      <th className="p-3 font-extrabold">
+                      <th className="p-3.5 font-extrabold">
                         Régimen MYPE (RMT)
                       </th>
-                      <th className="p-3 font-extrabold">
+                      <th className="p-3.5 font-extrabold">
                         Régimen General (RG)
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     <tr>
-                      <td className="p-3 font-bold">Tipo de contribuyente</td>
-                      <td className="p-3">Solo Persona Natural (RUC 10)</td>
-                      <td className="p-3">Persona Natural o Jurídica</td>
-                      <td className="p-3">Persona Natural o Jurídica</td>
-                      <td className="p-3">Persona Natural o Jurídica</td>
+                      <td className="p-3.5 font-bold text-slate-800">
+                        Tipo de contribuyente
+                      </td>
+                      <td className="p-3.5">Solo Persona Natural (RUC 10)</td>
+                      <td className="p-3.5">Persona Natural o Jurídica</td>
+                      <td className="p-3.5">Persona Natural o Jurídica</td>
+                      <td className="p-3.5">Persona Natural o Jurídica</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-bold">Límite de ingresos</td>
-                      <td className="p-3">S/ 96,000/año (S/ 8,000/mes)</td>
-                      <td className="p-3">Hasta S/ 525,000 anuales</td>
-                      <td className="p-3">Hasta 1,700 UIT anuales</td>
-                      <td className="p-3">Sin límite</td>
+                      <td className="p-3.5 font-bold text-slate-800">
+                        Límite de ingresos
+                      </td>
+                      <td className="p-3.5">S/ 96,000/año (S/ 8,000/mes)</td>
+                      <td className="p-3.5">Hasta S/ 525,000 anuales</td>
+                      <td className="p-3.5">Hasta 1,700 UIT anuales</td>
+                      <td className="p-3.5">Sin límite</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-bold">Límite de compras</td>
-                      <td className="p-3">S/ 96,000/año (S/ 8,000/mes)</td>
-                      <td className="p-3">Hasta S/ 525,000 anuales</td>
-                      <td className="p-3">Sin límite</td>
-                      <td className="p-3">Sin límite</td>
+                      <td className="p-3.5 font-bold text-slate-800">
+                        Límite de compras
+                      </td>
+                      <td className="p-3.5">S/ 96,000/año (S/ 8,000/mes)</td>
+                      <td className="p-3.5">Hasta S/ 525,000 anuales</td>
+                      <td className="p-3.5">Sin límite</td>
+                      <td className="p-3.5">Sin límite</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-bold">
+                      <td className="p-3.5 font-bold text-slate-800">
                         Restricciones de locales / personal / activos
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Máx. 1 local y S/ 70,000 en activos fijos
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Máx. 10 trab./turno y S/ 126,000 en activos fijos
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Sin tope de locales, personal ni activos
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Sin tope de locales, personal ni activos
                       </td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-bold">Comprobantes permitidos</td>
-                      <td className="p-3">
+                      <td className="p-3.5 font-bold text-slate-800">
+                        Comprobantes permitidos
+                      </td>
+                      <td className="p-3.5">
                         Solo Boleta de Venta y tickets (Prohibido Factura)
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Factura, Boleta, Notas de Crédito/Débito, Guías
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Factura, Boleta, Notas de Crédito/Débito, Guías
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Factura, Boleta, Notas de Crédito/Débito, Guías
                       </td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-bold">Declaraciones y pagos</td>
-                      <td className="p-3">
+                      <td className="p-3.5 font-bold text-slate-800">
+                        Declaraciones y pagos
+                      </td>
+                      <td className="p-3.5">
                         Pago Fácil mensual (S/ 20 o S/ 50). Sin DJ Anual
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Declara Fácil mensual (IGV 18% + Renta 1.5%). Sin DJ
                         Anual
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Mensual (IGV 18% + Renta 1%/1.5%) + DJ Anual (10% /
                         29.5%)
                       </td>
-                      <td className="p-3">
+                      <td className="p-3.5">
                         Mensual (IGV 18% + Renta 1.5%/coef.) + DJ Anual (29.5%)
                       </td>
                     </tr>
@@ -886,7 +951,6 @@ export function RouteDashboard() {
            ========================================================= */}
         {section === "obligaciones" && (
           <div className="mt-6 space-y-6">
-            {/* Internal System Alerts */}
             {obligationsPlan.alerts.length > 0 && (
               <section className="space-y-2.5">
                 {obligationsPlan.alerts.map((alert) => (
@@ -911,8 +975,7 @@ export function RouteDashboard() {
               </section>
             )}
 
-            {/* Official SUNAT Due Date Calendar by RUC & Period */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
@@ -934,7 +997,7 @@ export function RouteDashboard() {
                     id="period-select"
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold"
                   >
                     {Object.values(OFFICIAL_SUNAT_SCHEDULE).map((p) => (
                       <option key={p.period} value={p.period}>
@@ -980,7 +1043,7 @@ export function RouteDashboard() {
                   <p className="mt-1 text-xs font-bold text-slate-900">
                     {obligationsPlan.scheduleLookup.resolutionReference}
                   </p>
-                  <p className="mt-1 text-[11px] text-slate-600">
+                  <p className="mt-1 text-xs text-slate-600">
                     Estado de fuente:{" "}
                     <strong>
                       {obligationsPlan.scheduleLookup.verification}
@@ -998,9 +1061,8 @@ export function RouteDashboard() {
               </div>
             </section>
 
-            {/* Comprobantes, Declaraciones, Libros y Checklist de Tareas */}
-            <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <section className="grid items-start gap-6 lg:grid-cols-12">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 lg:col-span-7">
                 <h3 className="text-lg font-extrabold text-slate-900">
                   Tareas pendientes y completadas ({obligationsPlan.regimeName})
                 </h3>
@@ -1041,7 +1103,7 @@ export function RouteDashboard() {
                           </label>
                           <span
                             className={
-                              "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                              "shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                               (isDone
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-amber-100 text-amber-800")
@@ -1051,11 +1113,11 @@ export function RouteDashboard() {
                           </span>
                         </div>
 
-                        <p className="mt-2 text-xs leading-5 text-slate-600">
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
                           {obl.description}
                         </p>
 
-                        <div className="mt-2.5 rounded-xl bg-slate-50 p-2.5 text-[11px] text-slate-700">
+                        <div className="mt-2.5 rounded-xl bg-slate-50 p-2.5 text-xs text-slate-700">
                           <strong>Documentos a preparar:</strong>{" "}
                           {obl.documentsToPrepare.join(" · ")}
                         </div>
@@ -1064,55 +1126,53 @@ export function RouteDashboard() {
                   })}
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs text-amber-950">
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs leading-relaxed text-amber-950">
                   {obligationsPlan.completionDisclaimer}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
-                  <h3 className="text-base font-extrabold text-slate-900">
-                    Comprobantes y Declaraciones de tu Régimen
-                  </h3>
-                  <div className="mt-3 space-y-3 text-xs">
-                    <div>
-                      <span className="font-bold text-emerald-800">
-                        ✓ Comprobantes que puedes emitir:
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 lg:col-span-5">
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Comprobantes y Declaraciones de tu Régimen
+                </h3>
+                <div className="mt-4 space-y-4 text-xs leading-relaxed">
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5">
+                    <span className="font-extrabold text-emerald-900">
+                      ✓ Comprobantes que puedes emitir:
+                    </span>
+                    <p className="mt-1 text-slate-700">
+                      {obligationsPlan.allowedReceipts.join(", ")}
+                    </p>
+                  </div>
+                  {obligationsPlan.prohibitedReceipts.length > 0 && (
+                    <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-3.5">
+                      <span className="font-extrabold text-rose-900">
+                        ✕ Comprobantes NO permitidos:
                       </span>
                       <p className="mt-1 text-slate-700">
-                        {obligationsPlan.allowedReceipts.join(", ")}
+                        {obligationsPlan.prohibitedReceipts.join(", ")}
                       </p>
                     </div>
-                    {obligationsPlan.prohibitedReceipts.length > 0 && (
-                      <div>
-                        <span className="font-bold text-rose-800">
-                          ✕ Comprobantes NO permitidos:
-                        </span>
-                        <p className="mt-1 text-slate-700">
-                          {obligationsPlan.prohibitedReceipts.join(", ")}
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <span className="font-bold text-blue-800">
-                        📄 Declaraciones que corresponden:
-                      </span>
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-slate-700">
-                        {obligationsPlan.declarations.map((d) => (
-                          <li key={d}>{d}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">
-                        📚 Libros y registros contables:
-                      </span>
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-slate-700">
-                        {obligationsPlan.accountingBooks.map((b) => (
-                          <li key={b}>{b}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  )}
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                    <span className="font-extrabold text-blue-900">
+                      📄 Declaraciones que corresponden:
+                    </span>
+                    <ul className="mt-1.5 list-disc space-y-1 pl-4 text-slate-700">
+                      {obligationsPlan.declarations.map((d) => (
+                        <li key={d}>{d}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                    <span className="font-extrabold text-slate-900">
+                      📚 Libros y registros contables:
+                    </span>
+                    <ul className="mt-1.5 list-disc space-y-1 pl-4 text-slate-700">
+                      {obligationsPlan.accountingBooks.map((b) => (
+                        <li key={b}>{b}</li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -1125,43 +1185,42 @@ export function RouteDashboard() {
            ========================================================= */}
         {section === "crea-ia" && (
           <div className="mt-6 space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-extrabold text-indigo-700">
-                    🤖 Módulo: Crea IA · Arquitectura RAG sobre Documentación
-                    Oficial SUNAT
-                  </span>
-                  <h2 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
-                    Asistente Inteligente de Orientación Tributaria para
-                    Restaurantes
-                  </h2>
-                  <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 sm:text-sm">
-                    Explica tu diagnóstico tributario en lenguaje coloquial,
-                    resuelve dudas sobre regímenes y obligaciones, compara
-                    alternativas y muestra siempre fuentes oficiales
-                    verificables. <strong>Crea IA no modifica las decisiones del motor de reglas ni inventa normas, fechas o montos.</strong>
-                  </p>
-                </div>
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-extrabold text-indigo-700">
+                  🤖 Módulo: Crea IA · Arquitectura RAG sobre Documentación
+                  Oficial SUNAT
+                </span>
+                <h2 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
+                  Asistente Inteligente de Orientación Tributaria para
+                  Restaurantes
+                </h2>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 sm:text-sm">
+                  Explica tu diagnóstico tributario en lenguaje coloquial,
+                  resuelve dudas sobre regímenes y obligaciones, compara
+                  alternativas y muestra siempre fuentes oficiales verificables.{" "}
+                  <strong>
+                    Crea IA no modifica las decisiones del motor de reglas ni
+                    inventa normas, fechas o montos.
+                  </strong>
+                </p>
               </div>
 
-              {/* Quick Suggested Questions */}
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {QUICK_CREA_IA_QUESTIONS.map((q) => (
                   <button
                     key={q}
                     type="button"
                     onClick={() => handleAskCreaIa(q)}
                     disabled={iaLoading}
-                    className="rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-1.5 text-left text-xs font-bold text-indigo-900 transition hover:bg-indigo-100"
+                    className="rounded-xl border border-indigo-200 bg-indigo-50/60 px-3.5 py-2.5 text-left text-xs font-bold text-indigo-900 transition hover:bg-indigo-100"
                   >
                     💬 {q}
                   </button>
                 ))}
               </div>
 
-              {/* Input Box */}
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
                 <input
                   type="text"
                   value={iaQuery}
@@ -1188,7 +1247,6 @@ export function RouteDashboard() {
                 </div>
               )}
 
-              {/* Responses Feed */}
               <div className="mt-6 space-y-4">
                 {iaHistory.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-xs text-slate-500">
@@ -1248,13 +1306,13 @@ export function RouteDashboard() {
                               href={cit.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-blue-600 hover:border-blue-400"
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 hover:border-blue-400"
                             >
                               {cit.title} ({cit.legalBasis} · v{cit.version}) ↗
                             </a>
                           ))}
                         </div>
-                        <p className="mt-2 text-[10px] text-slate-500">
+                        <p className="mt-2 text-[11px] text-slate-500">
                           {item.response.guardrailNotice} (Consultas restantes
                           en sesión: {item.response.rateLimitRemaining})
                         </p>
@@ -1265,7 +1323,7 @@ export function RouteDashboard() {
               </div>
 
               {getCreaIaMetricsLog().length > 0 && (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[11px] text-slate-600">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
                   <strong>Métricas acumuladas de Crea IA en sesión:</strong>{" "}
                   {getCreaIaMetricsLog().length} consulta(s) registradas · 100%
                   consistentes con el motor de reglas · Respaldo normativo
@@ -1281,7 +1339,7 @@ export function RouteDashboard() {
            ========================================================= */}
         {section === "orientacion" && (
           <div className="mt-6 space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
               <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
                 Módulo: Centro de Orientación Tributaria para Restaurantes
               </span>
@@ -1337,7 +1395,7 @@ export function RouteDashboard() {
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="rounded-full bg-blue-100 px-3 py-0.5 text-[11px] font-extrabold text-blue-800">
+                        <span className="rounded-full bg-blue-100 px-3 py-0.5 text-xs font-extrabold text-blue-800">
                           {guide.areaLabel}
                         </span>
                         <span className="text-xs font-bold text-slate-500">
@@ -1348,11 +1406,11 @@ export function RouteDashboard() {
                       <h3 className="mt-2.5 text-base font-extrabold text-slate-900">
                         {guide.title}
                       </h3>
-                      <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                         {guide.askFor}
                       </p>
 
-                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-950">
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs leading-relaxed text-amber-950">
                         <strong>Ejemplo en restaurantes de Cajamarca:</strong>{" "}
                         {guide.restaurantExample}
                       </div>
@@ -1361,7 +1419,7 @@ export function RouteDashboard() {
                         <span className="text-xs font-bold text-slate-800">
                           Pasos clave:
                         </span>
-                        <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-slate-700">
+                        <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-slate-700">
                           {guide.steps.map((s) => (
                             <li key={s}>{s}</li>
                           ))}
@@ -1391,7 +1449,7 @@ export function RouteDashboard() {
            ========================================================= */}
         {section === "reportes" && (
           <div className="mt-6 space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
@@ -1416,53 +1474,69 @@ export function RouteDashboard() {
                 </button>
               </div>
 
-              {/* Report Preview Content */}
-              <div className="mt-5 grid gap-6 lg:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {/* Clean Structured Report Preview */}
+              <div className="mt-5 space-y-5">
+                <div className="rounded-2xl border border-slate-200 bg-white overflow-x-auto">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
                     <h3 className="text-sm font-extrabold text-slate-900">
-                      1. Identificación y Datos Evaluados
+                      1. Identificación y Datos Evaluados (Declarados vs.
+                      Verificados)
                     </h3>
-                    <div className="mt-2.5 space-y-1.5 text-xs">
+                  </div>
+                  <table className="w-full min-w-[600px] border-collapse text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/60 text-slate-700">
+                        <th className="p-3 font-extrabold">
+                          Característica evaluada
+                        </th>
+                        <th className="p-3 font-extrabold">Valor registrado</th>
+                        <th className="p-3 font-extrabold">Origen del dato</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
                       {reportData.evaluatedDataWithOrigins.map((item) => (
-                        <div
-                          key={item.field}
-                          className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-1"
-                        >
-                          <span className="font-semibold text-slate-700">
-                            {item.field}:
-                          </span>
-                          <div className="text-right">
-                            <span className="font-bold text-slate-900">
-                              {item.value}
-                            </span>
-                            <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500">
+                        <tr key={item.field}>
+                          <td className="p-3 font-semibold text-slate-700">
+                            {item.field}
+                          </td>
+                          <td className="p-3 font-bold text-slate-900">
+                            {item.value}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={
+                                "inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
+                                (item.origin.includes("Verificado")
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800")
+                              }
+                            >
                               {item.origin}
                             </span>
-                          </div>
-                        </div>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-                  </div>
+                    </tbody>
+                  </table>
+                </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <h3 className="text-sm font-extrabold text-slate-900">
                       2. Resultado de Compatibilidad del Régimen Actual
                     </h3>
-                    <p className="mt-1.5 text-xs font-bold text-slate-800">
+                    <p className="mt-2 text-xs font-bold text-slate-800">
                       {reportData.currentRegimeEvaluation.regimeName}:{" "}
                       <span className="underline">
                         {reportData.currentRegimeEvaluation.status}
                       </span>
                     </p>
-                    <p className="mt-1 text-xs text-slate-600">
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                       {reportData.currentRegimeEvaluation.summary}
                     </p>
                   </div>
-                </div>
 
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <h3 className="text-sm font-extrabold text-slate-900">
                       3. Alternativas Compatibles y Acciones Recomendadas
                     </h3>
@@ -1479,16 +1553,16 @@ export function RouteDashboard() {
                     <h4 className="mt-3 text-xs font-extrabold text-slate-900">
                       Acciones recomendadas:
                     </h4>
-                    <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-slate-700">
+                    <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-slate-700">
                       {reportData.recommendedActions.map((act) => (
                         <li key={act}>{act}</li>
                       ))}
                     </ol>
                   </div>
+                </div>
 
-                  <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 text-xs text-amber-950">
-                    {reportData.mandatoryDisclaimer}
-                  </div>
+                <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 text-xs leading-relaxed text-amber-950">
+                  {reportData.mandatoryDisclaimer}
                 </div>
               </div>
             </section>

@@ -826,8 +826,8 @@ export default function InvestigacionPage() {
                   </div>
 
                   {/* Table of Real Participant Records */}
-                  <div className="mt-5 overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-xs">
+                  <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
+                    <table className="w-full min-w-[920px] border-collapse text-left text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-100 text-slate-800">
                           <th className="p-2.5">Código</th>

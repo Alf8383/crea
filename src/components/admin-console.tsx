@@ -154,7 +154,7 @@ export function AdminConsole() {
           <>
             <nav
               aria-label="Secciones del panel administrativo"
-              className="mt-6 flex gap-1.5 overflow-x-auto"
+              className="mt-6 flex flex-wrap gap-2"
             >
               {(Object.keys(TAB_LABELS) as AdminTab[]).map((item) => (
                 <button

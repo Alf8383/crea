@@ -68,7 +68,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     try {
       const hasSavedContext = Boolean(localStorage.getItem(scopedStorageKey("efp-business-context")));
       if (hasSavedContext && !fromRegister) {
-        router.push("/negocios/demo/ruta");
+        router.push("/negocios?seccion=diagnostico");
         return;
       }
     } catch {}

@@ -16,11 +16,32 @@ import type {
   TaxRegimeCode,
 } from "@/lib/types";
 
-const STEP_TITLES = [
-  "1. Identificación RUC y Régimen Actual",
-  "2. Ventas, Compras y Comprobantes",
-  "3. Locales, Personal y Activos de Cocina",
+const STEPS = [
+  {
+    num: "1",
+    title: "Identificación y Régimen",
+    sub: "RUC, contribuyente y actividad CIIU",
+  },
+  {
+    num: "2",
+    title: "Ventas, Compras y Comprobantes",
+    sub: "Facturas de insumos, boletas y gastos",
+  },
+  {
+    num: "3",
+    title: "Locales, Personal y Activos",
+    sub: "Trabajadores por turno y equipos",
+  },
 ];
+
+const STATUS_LABEL: Record<
+  "COMPATIBLE" | "INCOMPATIBLE" | "INFORMACION_INSUFICIENTE",
+  string
+> = {
+  COMPATIBLE: "Compatible",
+  INCOMPATIBLE: "Incompatible",
+  INFORMACION_INSUFICIENTE: "Faltan datos",
+};
 
 export function BusinessWizard() {
   const router = useRouter();
@@ -77,7 +98,6 @@ export function BusinessWizard() {
     employees: "DECLARADO_USUARIO",
   });
 
-  // Cargar datos previos si existen en localStorage
   useEffect(() => {
     try {
       const savedRaw = localStorage.getItem(
@@ -312,7 +332,6 @@ export function BusinessWizard() {
         JSON.stringify(ctx)
       );
 
-      // Registrar intervención académica si el restaurante participa en el estudio
       try {
         const activeParticipant = localStorage.getItem(
           "crea-active-participant-code"
@@ -358,17 +377,17 @@ export function BusinessWizard() {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader />
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header & Security Notice */}
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
               🍽️ Módulo: Mi restaurante · Cajamarca, Perú
             </span>
             <h1 className="mt-2 text-2xl font-extrabold text-slate-900 sm:text-3xl">
               Ficha Tributaria de Mi Restaurante
             </h1>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600 sm:text-sm">
+            <p className="mt-1 text-xs leading-relaxed text-slate-600 sm:text-sm">
               Registra en lenguaje sencillo las características de tu
               restaurante formalizado. El sistema distingue entre los datos{" "}
               <strong>declarados por el usuario</strong> y los{" "}
@@ -376,9 +395,9 @@ export function BusinessWizard() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-950">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-xs text-emerald-950 shadow-2xs">
             <p className="font-extrabold">🔒 Garantía de seguridad tributaria</p>
-            <p className="mt-0.5 text-[11px]">
+            <p className="mt-0.5">
               Crea <strong>nunca solicita tu Clave SOL</strong> ni credenciales
               privadas de SUNAT.
             </p>
@@ -386,7 +405,7 @@ export function BusinessWizard() {
         </div>
 
         {/* Quick Preset Selector for Cajamarca Restaurants */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-bold text-slate-700">
               ⚡ Cargar perfil de ejemplo de restaurante en Cajamarca:
@@ -400,62 +419,98 @@ export function BusinessWizard() {
               Verificar RUC en Consulta RUC Oficial SUNAT ↗
             </a>
           </div>
-          <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {DEMO_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => applyPreset(preset.context)}
-                className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-left transition hover:border-blue-400 hover:bg-blue-50/40"
-              >
-                <span className="block text-[10px] font-extrabold uppercase text-blue-600">
-                  {preset.badge}
-                </span>
-                <span className="mt-0.5 block text-xs font-bold text-slate-900">
-                  {preset.shortTitle}
-                </span>
-              </button>
-            ))}
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            {DEMO_PRESETS.map((preset) => {
+              const isSelected =
+                businessName === preset.context.businessName &&
+                ruc === preset.context.ruc;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => applyPreset(preset.context)}
+                  className={
+                    "rounded-xl border p-3 text-left transition " +
+                    (isSelected
+                      ? "border-blue-600 bg-blue-50/70 ring-2 ring-blue-600/15"
+                      : "border-slate-200 bg-slate-50/70 hover:border-blue-300 hover:bg-white")
+                  }
+                >
+                  <span className="block text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                    {preset.badge}
+                  </span>
+                  <span className="mt-1 block text-xs font-extrabold text-slate-900">
+                    {preset.shortTitle}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        {/* Dynamic Stepper Navigation */}
-        <div className="mt-6 grid grid-cols-3 gap-2">
-          {STEP_TITLES.map((title, idx) => (
-            <button
-              key={title}
-              type="button"
-              onClick={() => setStep(idx)}
-              className={
-                "rounded-2xl border px-4 py-3 text-left text-xs font-bold transition " +
-                (step === idx
-                  ? "border-blue-600 bg-blue-600 text-white shadow-xs"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-300")
-              }
-            >
-              {title}
-            </button>
-          ))}
+        {/* Well-Proportioned Stepper Navigation */}
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          {STEPS.map((s, idx) => {
+            const active = step === idx;
+            return (
+              <button
+                key={s.num}
+                type="button"
+                onClick={() => setStep(idx)}
+                className={
+                  "flex items-center gap-3 rounded-2xl border p-3.5 text-left transition " +
+                  (active
+                    ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-300")
+                }
+              >
+                <span
+                  className={
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black " +
+                    (active
+                      ? "bg-white text-blue-600"
+                      : "bg-blue-50 text-blue-700")
+                  }
+                >
+                  {s.num}
+                </span>
+                <div>
+                  <span className="block text-xs font-extrabold">
+                    {s.title}
+                  </span>
+                  <span
+                    className={
+                      "block text-[11px] " +
+                      (active ? "text-blue-100" : "text-slate-500")
+                    }
+                  >
+                    {s.sub}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-          {/* Left Form Card */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-12">
+          {/* Left Form Card (8 cols on desktop for generous input widths) */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 lg:col-span-8">
             {step === 0 && (
               <div className="space-y-5">
                 <div className="border-b border-slate-100 pb-3">
                   <h2 className="text-lg font-extrabold text-slate-900">
                     Paso 1: Identificación RUC, Contribuyente y Régimen Actual
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    Marca si cada dato fue verificado en tu Ficha / Consulta RUC
-                    de SUNAT o si es declarado por ti.
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Usa el botón junto a cada campo para indicar si el dato fue{" "}
+                    <strong>Verificado en SUNAT</strong> o{" "}
+                    <strong>Declarado por el usuario</strong>.
                   </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <label
                         htmlFor="ruc-input"
                         className="text-xs font-bold text-slate-700"
@@ -466,7 +521,7 @@ export function BusinessWizard() {
                         type="button"
                         onClick={() => toggleOrigin("ruc")}
                         className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
                           (dataOrigins.ruc === "VERIFICADO_FUENTE_OFICIAL"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-amber-100 text-amber-800")
@@ -493,12 +548,17 @@ export function BusinessWizard() {
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="name-input"
-                      className="block text-xs font-bold text-slate-700"
-                    >
-                      Nombre comercial del restaurante
-                    </label>
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
+                      <label
+                        htmlFor="name-input"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Nombre comercial del restaurante
+                      </label>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Identificación
+                      </span>
+                    </div>
                     <input
                       id="name-input"
                       type="text"
@@ -508,14 +568,14 @@ export function BusinessWizard() {
                       className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] text-slate-500">
-                      Nombre con el que atiendes al público en Cajamarca.
+                      Nombre comercial del establecimiento en Cajamarca.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <span className="text-xs font-bold text-slate-700">
                         Tipo de contribuyente
                       </span>
@@ -523,7 +583,7 @@ export function BusinessWizard() {
                         type="button"
                         onClick={() => toggleOrigin("personType")}
                         className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
                           (dataOrigins.personType ===
                           "VERIFICADO_FUENTE_OFICIAL"
                             ? "bg-emerald-100 text-emerald-800"
@@ -540,31 +600,31 @@ export function BusinessWizard() {
                         type="button"
                         onClick={() => setPersonType("PERSONA_NATURAL")}
                         className={
-                          "rounded-xl border p-2.5 text-left text-xs font-bold transition " +
+                          "rounded-xl border py-2.5 px-3 text-center text-xs font-bold transition " +
                           (personType === "PERSONA_NATURAL"
                             ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600")
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
                         }
                       >
-                        Persona Natural (RUC 10)
+                        P. Natural (RUC 10)
                       </button>
                       <button
                         type="button"
                         onClick={() => setPersonType("PERSONA_JURIDICA")}
                         className={
-                          "rounded-xl border p-2.5 text-left text-xs font-bold transition " +
+                          "rounded-xl border py-2.5 px-3 text-center text-xs font-bold transition " +
                           (personType === "PERSONA_JURIDICA"
                             ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600")
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
                         }
                       >
-                        Persona Jurídica (RUC 20)
+                        P. Jurídica (RUC 20)
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <label
                         htmlFor="regime-select"
                         className="text-xs font-bold text-slate-700"
@@ -575,7 +635,7 @@ export function BusinessWizard() {
                         type="button"
                         onClick={() => toggleOrigin("currentRegime")}
                         className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
                           (dataOrigins.currentRegime ===
                           "VERIFICADO_FUENTE_OFICIAL"
                             ? "bg-emerald-100 text-emerald-800"
@@ -610,20 +670,20 @@ export function BusinessWizard() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <label
                         htmlFor="specialty-select"
                         className="text-xs font-bold text-slate-700"
                       >
-                        Actividad económica gastronómica (CIIU)
+                        Actividad económica (CIIU)
                       </label>
                       <button
                         type="button"
                         onClick={() => toggleOrigin("ciiu")}
                         className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
                           (dataOrigins.ciiu === "VERIFICADO_FUENTE_OFICIAL"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-amber-100 text-amber-800")
@@ -645,7 +705,7 @@ export function BusinessWizard() {
                       className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
                     >
                       <option value="RESTAURANTE_MENU">
-                        CIIU 5610 · Restaurante de menú y platos a la carta
+                        CIIU 5610 · Restaurante de menú y carta
                       </option>
                       <option value="POLLERIA_PARRILLERIA">
                         CIIU 5610 · Pollería, parrillería o chifa
@@ -657,18 +717,23 @@ export function BusinessWizard() {
                         CIIU 5610 · Cafetería, juguería o sanguchería
                       </option>
                       <option value="CATERING_EVENTOS">
-                        CIIU 5621 · Suministro de comidas por encargo / Catering
+                        CIIU 5621 · Suministro de comidas por encargo
                       </option>
                     </select>
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="district-select"
-                      className="block text-xs font-bold text-slate-700"
-                    >
-                      Distrito en Cajamarca
-                    </label>
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
+                      <label
+                        htmlFor="district-select"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Distrito en Cajamarca
+                      </label>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Ubicación
+                      </span>
+                    </div>
                     <select
                       id="district-select"
                       value={district}
@@ -687,7 +752,7 @@ export function BusinessWizard() {
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-3">
+                <div className="flex justify-end border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     onClick={() => setStep(1)}
@@ -705,15 +770,15 @@ export function BusinessWizard() {
                   <h2 className="text-lg font-extrabold text-slate-900">
                     Paso 2: Ventas, Compras de Insumos y Comprobantes
                   </h2>
-                  <p className="text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500">
                     Distingue tus compras con Factura (que dan crédito fiscal de
                     IGV) de las compras con Boleta o en mercado.
                   </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <label
                         htmlFor="monthly-sales"
                         className="text-xs font-bold text-slate-700"
@@ -724,7 +789,7 @@ export function BusinessWizard() {
                         type="button"
                         onClick={() => toggleOrigin("monthlyRevenue")}
                         className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
                           (dataOrigins.monthlyRevenue ===
                           "VERIFICADO_FUENTE_OFICIAL"
                             ? "bg-emerald-100 text-emerald-800"
@@ -751,12 +816,17 @@ export function BusinessWizard() {
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="annual-sales"
-                      className="block text-xs font-bold text-slate-700"
-                    >
-                      Ventas brutas anuales proyectadas (S/)
-                    </label>
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
+                      <label
+                        htmlFor="annual-sales"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Ventas brutas anuales proyectadas (S/)
+                      </label>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Anual (×12)
+                      </span>
+                    </div>
                     <input
                       id="annual-sales"
                       type="number"
@@ -772,15 +842,32 @@ export function BusinessWizard() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-3">
+                {/* Purchases & Expenses in Balanced 2-Column + Full-Width Layout */}
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <label
                         htmlFor="purchases-invoice"
                         className="text-xs font-bold text-slate-700"
                       >
                         Compras mensuales CON Factura (S/)
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("monthlyPurchases")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
+                          (dataOrigins.monthlyPurchases ===
+                          "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.monthlyPurchases ===
+                        "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado RCE"
+                          : "✎ Declarado usuario"}
+                      </button>
                     </div>
                     <input
                       id="purchases-invoice"
@@ -792,18 +879,23 @@ export function BusinessWizard() {
                       }
                       className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-emerald-700">
-                      ✓ Otorga crédito fiscal de IGV (18%).
+                    <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                      ✓ Otorga crédito fiscal de IGV (18%) y sustenta costo.
                     </p>
                   </div>
 
                   <div>
-                    <label
-                      htmlFor="purchases-no-invoice"
-                      className="block text-xs font-bold text-slate-700"
-                    >
-                      Compras mensuales SIN Factura / Boleta (S/)
-                    </label>
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
+                      <label
+                        htmlFor="purchases-no-invoice"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Compras SIN Factura / Boleta (S/)
+                      </label>
+                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                        Sin crédito IGV
+                      </span>
+                    </div>
                     <input
                       id="purchases-no-invoice"
                       type="number"
@@ -815,51 +907,53 @@ export function BusinessWizard() {
                       className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] text-amber-700">
-                      No otorga crédito fiscal de IGV.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="operating-expenses"
-                      className="block text-xs font-bold text-slate-700"
-                    >
-                      Otros gastos operativos mensuales (S/)
-                    </label>
-                    <input
-                      id="operating-expenses"
-                      type="number"
-                      min={0}
-                      value={monthlyOperatingExpenses}
-                      onChange={(e) =>
-                        setMonthlyOperatingExpenses(e.target.value)
-                      }
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
-                    />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Planilla, alquiler formal y servicios (deducibles en RMT/RG).
+                      Compras en mercado con boleta o sin comprobante.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="flex min-h-[26px] items-center justify-between gap-2">
+                    <label
+                      htmlFor="operating-expenses"
+                      className="text-xs font-bold text-slate-700"
+                    >
+                      Otros gastos operativos formales al mes (Planilla,
+                      alquiler con recibo/factura, luz, agua) (S/)
+                    </label>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                      Deducible RMT / RG
+                    </span>
+                  </div>
+                  <input
+                    id="operating-expenses"
+                    type="number"
+                    min={0}
+                    value={monthlyOperatingExpenses}
+                    onChange={(e) =>
+                      setMonthlyOperatingExpenses(e.target.value)
+                    }
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
                     <span className="block text-xs font-bold text-slate-700">
-                      ¿Tu restaurante necesita emitir Facturas a empresas o
-                      instituciones?
+                      ¿Tu restaurante necesita emitir Facturas a empresas?
                     </span>
-                    <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setNeedsFacturas(false)}
                         className={
-                          "rounded-xl border p-2.5 text-xs font-bold transition " +
+                          "rounded-xl border py-2.5 px-3 text-xs font-bold transition " +
                           (!needsFacturas
                             ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600")
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
                         }
                       >
-                        No, solo Boletas de Venta
+                        No, solo Boletas
                       </button>
                       <button
                         type="button"
@@ -870,13 +964,13 @@ export function BusinessWizard() {
                           }
                         }}
                         className={
-                          "rounded-xl border p-2.5 text-xs font-bold transition " +
+                          "rounded-xl border py-2.5 px-3 text-xs font-bold transition " +
                           (needsFacturas
                             ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600")
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
                         }
                       >
-                        Sí, necesita emitir Facturas
+                        Sí, emite Facturas
                       </button>
                     </div>
                   </div>
@@ -885,7 +979,7 @@ export function BusinessWizard() {
                     <span className="block text-xs font-bold text-slate-700">
                       Comprobantes utilizados en el restaurante
                     </span>
-                    <div className="mt-1.5 flex flex-wrap gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       {(
                         [
                           { code: "BOLETA", label: "Boleta de Venta" },
@@ -899,10 +993,10 @@ export function BusinessWizard() {
                           type="button"
                           onClick={() => toggleReceipt(item.code)}
                           className={
-                            "rounded-lg border px-3 py-1.5 text-xs font-bold transition " +
+                            "rounded-xl border px-3 py-2 text-xs font-bold transition " +
                             (emittedReceipts.includes(item.code)
                               ? "border-blue-600 bg-blue-50 text-blue-800"
-                              : "border-slate-200 text-slate-600")
+                              : "border-slate-200 text-slate-600 hover:bg-slate-50")
                           }
                         >
                           {emittedReceipts.includes(item.code) ? "✓ " : ""}
@@ -913,7 +1007,7 @@ export function BusinessWizard() {
                   </div>
                 </div>
 
-                <div className="flex justify-between pt-3">
+                <div className="flex justify-between border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     onClick={() => setStep(0)}
@@ -939,20 +1033,25 @@ export function BusinessWizard() {
                     Paso 3: Establecimientos, Trabajadores por Turno y Activos
                     Fijos
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    Estos datos son obligatorios para verificar las restricciones
-                    del Nuevo RUS y del Régimen Especial (RER).
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Estos datos son obligatorios para verificar las
+                    restricciones del Nuevo RUS y del Régimen Especial (RER).
                   </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label
-                      htmlFor="establishments-input"
-                      className="block text-xs font-bold text-slate-700"
-                    >
-                      Número de establecimientos
-                    </label>
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
+                      <label
+                        htmlFor="establishments-input"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Número de establecimientos abiertos
+                      </label>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Tope NRUS: 1
+                      </span>
+                    </div>
                     <input
                       id="establishments-input"
                       type="number"
@@ -963,23 +1062,23 @@ export function BusinessWizard() {
                       className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] text-slate-500">
-                      NRUS permite máximo 1 local.
+                      El Nuevo RUS permite operar únicamente en 1 local.
                     </p>
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex min-h-[26px] items-center justify-between gap-2">
                       <label
                         htmlFor="workers-shift"
                         className="text-xs font-bold text-slate-700"
                       >
-                        Trabajadores por turno
+                        Cantidad máxima de trabajadores por turno
                       </label>
                       <button
                         type="button"
                         onClick={() => toggleOrigin("employees")}
                         className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
                           (dataOrigins.employees === "VERIFICADO_FUENTE_OFICIAL"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-amber-100 text-amber-800")
@@ -987,7 +1086,7 @@ export function BusinessWizard() {
                       >
                         {dataOrigins.employees === "VERIFICADO_FUENTE_OFICIAL"
                           ? "✓ Verificado PLAME"
-                          : "✎ Declarado"}
+                          : "✎ Declarado usuario"}
                       </button>
                     </div>
                     <input
@@ -1000,47 +1099,49 @@ export function BusinessWizard() {
                       className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] text-slate-500">
-                      RER permite máximo 10 por turno.
+                      El RER permite como máximo 10 trabajadores por turno.
                     </p>
                   </div>
+                </div>
 
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label
-                        htmlFor="fixed-assets"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Valor activos fijos (S/)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("fixedAssetsValue")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
-                          (dataOrigins.fixedAssetsValue ===
-                          "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.fixedAssetsValue ===
+                <div>
+                  <div className="flex min-h-[26px] items-center justify-between gap-2">
+                    <label
+                      htmlFor="fixed-assets"
+                      className="text-xs font-bold text-slate-700"
+                    >
+                      Valor estimado de activos fijos (hornos, congeladoras,
+                      cocina industrial, mobiliario de salón) (S/)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => toggleOrigin("fixedAssetsValue")}
+                      className={
+                        "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
+                        (dataOrigins.fixedAssetsValue ===
                         "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado"
-                          : "✎ Declarado"}
-                      </button>
-                    </div>
-                    <input
-                      id="fixed-assets"
-                      type="number"
-                      min={0}
-                      value={fixedAssetsValue}
-                      onChange={(e) => setFixedAssetsValue(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
-                    />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Hornos, frío, muebles (sin predios/vehículos).
-                    </p>
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800")
+                      }
+                    >
+                      {dataOrigins.fixedAssetsValue ===
+                      "VERIFICADO_FUENTE_OFICIAL"
+                        ? "✓ Verificado"
+                        : "✎ Declarado usuario"}
+                    </button>
                   </div>
+                  <input
+                    id="fixed-assets"
+                    type="number"
+                    min={0}
+                    value={fixedAssetsValue}
+                    onChange={(e) => setFixedAssetsValue(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Sin incluir predios ni vehículos. Límite NRUS: S/ 70,000 ·
+                    Límite RER: S/ 126,000.
+                  </p>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1049,26 +1150,26 @@ export function BusinessWizard() {
                     1269):
                   </span>
                   <div className="mt-2.5 space-y-2 text-xs text-slate-700">
-                    <label className="flex items-center gap-2">
+                    <label className="flex items-start gap-2.5">
                       <input
                         type="checkbox"
                         checked={hasCorporateLinkageOverLimit}
                         onChange={(e) =>
                           setHasCorporateLinkageOverLimit(e.target.checked)
                         }
-                        className="rounded border-slate-300 accent-blue-600"
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-blue-600"
                       />
                       <span>
                         ¿Tiene vinculación económica con otras empresas cuyos
                         ingresos conjuntos superen las 1,700 UIT?
                       </span>
                     </label>
-                    <label className="flex items-center gap-2">
+                    <label className="flex items-start gap-2.5">
                       <input
                         type="checkbox"
                         checked={isForeignBranch}
                         onChange={(e) => setIsForeignBranch(e.target.checked)}
-                        className="rounded border-slate-300 accent-blue-600"
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-blue-600"
                       />
                       <span>
                         ¿Es sucursal o establecimiento permanente de una empresa
@@ -1078,7 +1179,7 @@ export function BusinessWizard() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     onClick={() => setStep(1)}
@@ -1101,16 +1202,16 @@ export function BusinessWizard() {
             )}
           </div>
 
-          {/* Right Live Preview Card */}
-          <aside className="space-y-4">
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+          {/* Right Live Preview Card (4 cols on desktop) */}
+          <aside className="lg:col-span-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
               <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
                 Vista previa en tiempo real
               </span>
               <h3 className="mt-1 text-base font-extrabold text-slate-900">
                 {currentContext.businessName}
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-slate-500">
                 RUC: {currentContext.ruc || "Sin registrar"} · CIIU{" "}
                 {currentContext.ciiu}
               </p>
@@ -1118,8 +1219,9 @@ export function BusinessWizard() {
               {liveEval.currentRegimeDiagnostic && (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-700">
-                      Régimen actual: {liveEval.currentRegimeDiagnostic.currentRegime}
+                    <span className="text-xs font-bold text-slate-800">
+                      Régimen actual:{" "}
+                      {liveEval.currentRegimeDiagnostic.currentRegime}
                     </span>
                     <span
                       className={
@@ -1133,10 +1235,10 @@ export function BusinessWizard() {
                             : "bg-amber-100 text-amber-800")
                       }
                     >
-                      {liveEval.currentRegimeDiagnostic.status}
+                      {STATUS_LABEL[liveEval.currentRegimeDiagnostic.status]}
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
                     {liveEval.currentRegimeDiagnostic.summary}
                   </p>
                 </div>
@@ -1144,17 +1246,22 @@ export function BusinessWizard() {
 
               <div className="mt-4 space-y-2">
                 <span className="block text-xs font-bold text-slate-700">
-                  Evaluación de los 4 regímenes tributarios:
+                  Evaluación de los 4 regímenes:
                 </span>
                 {liveEval.taxRecommendations.map((rec) => (
                   <div
                     key={rec.regime}
-                    className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5 text-xs"
                   >
-                    <span className="font-bold text-slate-800">{rec.name}</span>
+                    <span className="font-bold text-slate-800">
+                      {rec.regime} ·{" "}
+                      <span className="font-medium text-slate-600">
+                        {rec.name.replace(/\s*\(.*?\)/, "")}
+                      </span>
+                    </span>
                     <span
                       className={
-                        "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                        "shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                         (rec.status === "COMPATIBLE"
                           ? "bg-emerald-100 text-emerald-800"
                           : rec.status === "INCOMPATIBLE"
@@ -1162,7 +1269,7 @@ export function BusinessWizard() {
                             : "bg-amber-100 text-amber-800")
                       }
                     >
-                      {rec.status}
+                      {STATUS_LABEL[rec.status]}
                     </span>
                   </div>
                 ))}
@@ -1172,9 +1279,9 @@ export function BusinessWizard() {
                 type="button"
                 disabled={saving}
                 onClick={handleSaveAndEvaluate}
-                className="mt-4 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                className="mt-5 w-full rounded-xl bg-blue-600 py-3 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
               >
-                Ver diagnóstico completo y simulador →
+                Guardar y ver diagnóstico completo →
               </button>
             </div>
           </aside>
