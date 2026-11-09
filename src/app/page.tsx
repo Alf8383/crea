@@ -309,7 +309,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setIsCompany(false)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (!isCompany
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -321,7 +321,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setIsCompany(true)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (isCompany
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -341,7 +341,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setNeedsInvoice(false)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (!needsInvoice
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -353,7 +353,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setNeedsInvoice(true)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (needsInvoice
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -373,7 +373,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setWorkersPerShift(4)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (workersPerShift <= 10
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -385,7 +385,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setWorkersPerShift(12)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (workersPerShift > 10
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -405,7 +405,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setEstablishments(1)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (establishments === 1
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -417,7 +417,7 @@ export default function Home() {
                         type="button"
                         onClick={() => setEstablishments(2)}
                         className={
-                          "rounded-lg py-2 px-2 transition " +
+                          "flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-2 transition " +
                           (establishments > 1
                             ? "bg-white text-blue-700 shadow-2xs"
                             : "text-slate-600 hover:text-slate-900")
@@ -458,7 +458,7 @@ export default function Home() {
                         </span>
                         <span
                           className={
-                            "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                            "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                             (nrusCompatible
                               ? "bg-emerald-100 text-emerald-800"
                               : "bg-rose-100 text-rose-800")
@@ -500,7 +500,7 @@ export default function Home() {
                         </span>
                         <span
                           className={
-                            "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                            "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                             (rerCompatible
                               ? "bg-emerald-100 text-emerald-800"
                               : "bg-rose-100 text-rose-800")
@@ -538,7 +538,7 @@ export default function Home() {
                         </span>
                         <span
                           className={
-                            "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                            "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                             (rmtCompatible
                               ? "bg-emerald-100 text-emerald-800"
                               : "bg-rose-100 text-rose-800")
@@ -561,7 +561,7 @@ export default function Home() {
                         <span className="text-xs font-extrabold text-slate-900">
                           Régimen General (RG)
                         </span>
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800">
+                        <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800">
                           COMPATIBLE
                         </span>
                       </div>

@@ -1,13 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
-import { scopedStorageKey } from "@/lib/account-storage";
-import { DEMO_PRESETS } from "@/lib/demo-presets";
-import { saveBusinessToFirestore } from "@/lib/firebase/businesses";
 import { RuleEngine } from "@/lib/rule-engine";
 import { seedCatalog } from "@/lib/seed-catalog";
+import { DEMO_PRESETS } from "@/lib/demo-presets";
+import { scopedStorageKey } from "@/lib/account-storage";
+import { saveBusinessToFirestore } from "@/lib/firebase/businesses";
 import type {
   BusinessContext,
   DataOrigin,
@@ -18,53 +18,50 @@ import type {
 
 const STEPS = [
   {
-    num: "1",
+    num: 1,
     title: "Identificación y Régimen",
-    sub: "RUC, contribuyente y actividad CIIU",
+    sub: "RUC, contribuyente y actividad",
   },
   {
-    num: "2",
+    num: 2,
     title: "Ventas, Compras y Comprobantes",
-    sub: "Facturas de insumos, boletas y gastos",
+    sub: "Facturas, boletas y gastos",
   },
   {
-    num: "3",
+    num: 3,
     title: "Locales, Personal y Activos",
-    sub: "Trabajadores por turno y equipos",
+    sub: "Condiciones operativas SUNAT",
   },
 ];
 
-const STATUS_LABEL: Record<
-  "COMPATIBLE" | "INCOMPATIBLE" | "INFORMACION_INSUFICIENTE",
-  string
-> = {
-  COMPATIBLE: "Compatible",
-  INCOMPATIBLE: "Incompatible",
+const STATUS_LABEL: Record<string, string> = {
+  COMPATIBLE: "✓ Compatible",
+  INCOMPATIBLE: "✕ Incompatible",
   INFORMACION_INSUFICIENTE: "Faltan datos",
 };
 
 export function BusinessWizard() {
   const router = useRouter();
-  const [step, setStep] = useState<number>(0);
-  const [saving, setSaving] = useState<boolean>(false);
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
 
-  // Campos de la ficha "Mi restaurante"
-  const [ruc, setRuc] = useState<string>("10428519302");
-  const [businessName, setBusinessName] = useState<string>(
+  // Step 1: Identificación tributaria
+  const [ruc, setRuc] = useState("10428519302");
+  const [businessName, setBusinessName] = useState(
     "Restaurante Tradicional El Cumbe"
   );
-  const [district, setDistrict] = useState<string>("Cajamarca");
+  const [district, setDistrict] = useState("Cajamarca");
   const [personType, setPersonType] = useState<
     "PERSONA_NATURAL" | "PERSONA_JURIDICA"
   >("PERSONA_NATURAL");
   const [currentRegime, setCurrentRegime] = useState<
-    TaxRegimeCode | "SIN_REGIMEN" | "DESCONOCIDO"
+    TaxRegimeCode | "SIN_REGIMEN"
   >("NRUS");
   const [restaurantSpecialty, setRestaurantSpecialty] =
     useState<RestaurantActivityCode>("RESTAURANTE_MENU");
-  const [ciiu, setCiiu] = useState<string>("5610");
+  const [ciiu, setCiiu] = useState<"5610" | "5621">("5610");
 
-  // Ventas, compras y comprobantes
+  // Step 2: Ventas, compras y comprobantes
   const [monthlyRevenue, setMonthlyRevenue] = useState<string>("4500");
   const [annualRevenue, setAnnualRevenue] = useState<string>("54000");
   const [monthlyPurchasesWithInvoice, setMonthlyPurchasesWithInvoice] =
@@ -78,7 +75,7 @@ export function BusinessWizard() {
     "BOLETA",
   ]);
 
-  // Locales, personal por turno, activos y condiciones especiales
+  // Step 3: Locales, trabajadores por turno, activos fijos y condiciones RMT
   const [establishmentCount, setEstablishmentCount] = useState<string>("1");
   const [employeesPerShift, setEmployeesPerShift] = useState<string>("2");
   const [fixedAssetsValue, setFixedAssetsValue] = useState<string>("12000");
@@ -86,63 +83,82 @@ export function BusinessWizard() {
     useState<boolean>(false);
   const [isForeignBranch, setIsForeignBranch] = useState<boolean>(false);
 
-  // Distinción explícita entre datos declarados por el usuario y verificados en fuente oficial
-  const [dataOrigins, setDataOrigins] = useState<Record<string, DataOrigin>>({
+  // Origen de datos: Declarado por usuario vs Verificado en fuente oficial (SUNAT)
+  const [dataOrigins, setDataOrigins] = useState<
+    Record<string, DataOrigin>
+  >({
     ruc: "VERIFICADO_FUENTE_OFICIAL",
-    currentRegime: "VERIFICADO_FUENTE_OFICIAL",
     personType: "VERIFICADO_FUENTE_OFICIAL",
+    currentRegime: "VERIFICADO_FUENTE_OFICIAL",
     ciiu: "VERIFICADO_FUENTE_OFICIAL",
     monthlyRevenue: "DECLARADO_USUARIO",
     monthlyPurchases: "DECLARADO_USUARIO",
-    fixedAssetsValue: "DECLARADO_USUARIO",
     employees: "DECLARADO_USUARIO",
+    fixedAssetsValue: "DECLARADO_USUARIO",
   });
 
   useEffect(() => {
     try {
-      const savedRaw = localStorage.getItem(
-        scopedStorageKey("efp-business-context")
-      );
-      if (!savedRaw) return;
-      const saved = JSON.parse(savedRaw) as BusinessContext;
-      if (saved.ruc) setRuc(saved.ruc);
-      if (saved.businessName) setBusinessName(saved.businessName);
-      if (saved.district) setDistrict(saved.district);
-      if (saved.personType) setPersonType(saved.personType);
-      if (saved.currentRegime) setCurrentRegime(saved.currentRegime);
-      if (saved.restaurantSpecialty)
-        setRestaurantSpecialty(saved.restaurantSpecialty);
-      if (saved.ciiu) setCiiu(saved.ciiu);
-      if (saved.monthlyRevenue !== undefined)
-        setMonthlyRevenue(String(saved.monthlyRevenue));
-      if (saved.annualRevenue !== undefined)
-        setAnnualRevenue(String(saved.annualRevenue));
-      if (saved.monthlyPurchasesWithInvoice !== undefined)
-        setMonthlyPurchasesWithInvoice(
-          String(saved.monthlyPurchasesWithInvoice)
-        );
-      if (saved.monthlyPurchasesWithoutInvoice !== undefined)
-        setMonthlyPurchasesWithoutInvoice(
-          String(saved.monthlyPurchasesWithoutInvoice)
-        );
-      if (saved.monthlyOperatingExpenses !== undefined)
-        setMonthlyOperatingExpenses(String(saved.monthlyOperatingExpenses));
-      if (saved.needsFacturas !== undefined)
-        setNeedsFacturas(saved.needsFacturas);
-      if (saved.emittedReceipts) setEmittedReceipts(saved.emittedReceipts);
-      if (saved.establishmentCount !== undefined)
-        setEstablishmentCount(String(saved.establishmentCount));
-      if (saved.employees !== undefined)
-        setEmployeesPerShift(String(saved.employees));
-      if (saved.fixedAssetsValue !== undefined)
-        setFixedAssetsValue(String(saved.fixedAssetsValue));
-      if (saved.hasCorporateLinkageOverLimit !== undefined)
-        setHasCorporateLinkageOverLimit(
-          Boolean(saved.hasCorporateLinkageOverLimit)
-        );
-      if (saved.isForeignBranch !== undefined)
-        setIsForeignBranch(Boolean(saved.isForeignBranch));
-      if (saved.dataOrigins) setDataOrigins(saved.dataOrigins);
+      const raw = localStorage.getItem(scopedStorageKey("efp-business-context"));
+      if (raw) {
+        const parsed = JSON.parse(raw) as BusinessContext;
+        if (parsed.ruc) setRuc(parsed.ruc);
+        if (parsed.businessName) setBusinessName(parsed.businessName);
+        if (parsed.district) setDistrict(parsed.district);
+        if (
+          parsed.personType === "PERSONA_NATURAL" ||
+          parsed.personType === "PERSONA_JURIDICA"
+        ) {
+          setPersonType(parsed.personType);
+        }
+        if (parsed.currentRegime && parsed.currentRegime !== "DESCONOCIDO") {
+          setCurrentRegime(parsed.currentRegime);
+        }
+        if (parsed.restaurantSpecialty)
+          setRestaurantSpecialty(parsed.restaurantSpecialty);
+        if (parsed.ciiu === "5610" || parsed.ciiu === "5621")
+          setCiiu(parsed.ciiu);
+        if (parsed.monthlyRevenue !== undefined)
+          setMonthlyRevenue(String(parsed.monthlyRevenue));
+        if (parsed.annualRevenue !== undefined)
+          setAnnualRevenue(String(parsed.annualRevenue));
+        if (parsed.monthlyPurchasesWithInvoice !== undefined) {
+          setMonthlyPurchasesWithInvoice(
+            String(parsed.monthlyPurchasesWithInvoice)
+          );
+        }
+        if (parsed.monthlyPurchasesWithoutInvoice !== undefined) {
+          setMonthlyPurchasesWithoutInvoice(
+            String(parsed.monthlyPurchasesWithoutInvoice)
+          );
+        }
+        if (parsed.monthlyOperatingExpenses !== undefined) {
+          setMonthlyOperatingExpenses(String(parsed.monthlyOperatingExpenses));
+        }
+        if (typeof parsed.needsFacturas === "boolean")
+          setNeedsFacturas(parsed.needsFacturas);
+        if (parsed.emittedReceipts && parsed.emittedReceipts.length > 0) {
+          setEmittedReceipts(parsed.emittedReceipts);
+        }
+        if (parsed.establishmentCount !== undefined) {
+          setEstablishmentCount(String(parsed.establishmentCount));
+        }
+        if (parsed.employees !== undefined) {
+          setEmployeesPerShift(String(parsed.employees));
+        }
+        if (parsed.fixedAssetsValue !== undefined) {
+          setFixedAssetsValue(String(parsed.fixedAssetsValue));
+        }
+        if (typeof parsed.hasCorporateLinkageOverLimit === "boolean") {
+          setHasCorporateLinkageOverLimit(parsed.hasCorporateLinkageOverLimit);
+        }
+        if (typeof parsed.isForeignBranch === "boolean") {
+          setIsForeignBranch(parsed.isForeignBranch);
+        }
+        if (parsed.dataOrigins) {
+          setDataOrigins(parsed.dataOrigins);
+        }
+      }
     } catch {}
   }, []);
 
@@ -194,11 +210,11 @@ export function BusinessWizard() {
     setBusinessName(presetContext.businessName || "Mi Restaurante");
     setDistrict(presetContext.district || "Cajamarca");
     setPersonType(presetContext.personType || "PERSONA_NATURAL");
-    setCurrentRegime(presetContext.currentRegime || "NRUS");
+    setCurrentRegime(presetContext.currentRegime && presetContext.currentRegime !== "DESCONOCIDO" ? presetContext.currentRegime : "NRUS");
     setRestaurantSpecialty(
       presetContext.restaurantSpecialty || "RESTAURANTE_MENU"
     );
-    setCiiu(presetContext.ciiu || "5610");
+    setCiiu(presetContext.ciiu === "5621" ? "5621" : "5610");
     setMonthlyRevenue(String(presetContext.monthlyRevenue ?? 4500));
     setAnnualRevenue(String(presetContext.annualRevenue ?? 54000));
     setMonthlyPurchasesWithInvoice(
@@ -373,6 +389,25 @@ export function BusinessWizard() {
     }
   };
 
+  const renderOriginToggle = (field: string, verifiedLabel = "Fuente SUNAT") => {
+    const isVerified = dataOrigins[field] === "VERIFICADO_FUENTE_OFICIAL";
+    return (
+      <button
+        type="button"
+        onClick={() => toggleOrigin(field)}
+        title="Haz clic para alternar entre dato verificado en fuente oficial y dato declarado por el usuario"
+        className={
+          "shrink-0 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition " +
+          (isVerified
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+            : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100")
+        }
+      >
+        {isVerified ? `✓ ${verifiedLabel}` : "✎ Declarado"}
+      </button>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader />
@@ -474,7 +509,7 @@ export function BusinessWizard() {
                 >
                   {s.num}
                 </span>
-                <div>
+                <div className="min-w-0">
                   <span className="block text-xs font-extrabold">
                     {s.title}
                   </span>
@@ -493,161 +528,121 @@ export function BusinessWizard() {
         </div>
 
         <div className="mt-6 grid items-start gap-6 lg:grid-cols-12">
-          {/* Left Form Card (8 cols on desktop for generous input widths) */}
+          {/* Left Form Card (8 cols on desktop for generous, aligned inputs) */}
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 lg:col-span-8">
             {step === 0 && (
-              <div className="space-y-5">
-                <div className="border-b border-slate-100 pb-3">
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-3.5">
                   <h2 className="text-lg font-extrabold text-slate-900">
                     Paso 1: Identificación RUC, Contribuyente y Régimen Actual
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Usa el botón junto a cada campo para indicar si el dato fue{" "}
-                    <strong>Verificado en SUNAT</strong> o{" "}
-                    <strong>Declarado por el usuario</strong>.
+                    Debajo de cada campo puedes alternar entre{" "}
+                    <strong>✓ Fuente SUNAT</strong> y{" "}
+                    <strong>✎ Declarado</strong> según cómo obtuviste el dato.
                   </p>
                 </div>
 
+                {/* Row 1: RUC + Nombre comercial (Aligned h-11 inputs) */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="ruc-input"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Número de RUC (11 dígitos)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("ruc")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.ruc === "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.ruc === "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado SUNAT"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
+                    <label
+                      htmlFor="ruc-input"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Número de RUC (11 dígitos)
+                    </label>
                     <input
                       id="ruc-input"
                       type="text"
                       value={ruc}
                       onChange={(e) => handleRucChange(e.target.value)}
                       placeholder="Ej. 10428519302 o 20608419257"
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      {ruc.length === 11
-                        ? `Último dígito de RUC: «${ruc[10]}» (usado para tu cronograma SUNAT).`
-                        : "Ingresa los 11 dígitos del RUC del restaurante."}
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        {ruc.length === 11
+                          ? `Último dígito: «${ruc[10]}» (cronograma SUNAT)`
+                          : "Ingresa los 11 dígitos del RUC"}
+                      </span>
+                      {renderOriginToggle("ruc", "Ficha RUC")}
+                    </div>
                   </div>
 
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="name-input"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Nombre comercial del restaurante
-                      </label>
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        Identificación
-                      </span>
-                    </div>
+                    <label
+                      htmlFor="name-input"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Nombre comercial del restaurante
+                    </label>
                     <input
                       id="name-input"
                       type="text"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                       placeholder="Ej. Restaurante El Cumbe"
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Nombre comercial del establecimiento en Cajamarca.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        Nombre con el que atiendes en Cajamarca
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        Identificación
+                      </span>
+                    </div>
                   </div>
                 </div>
 
+                {/* Row 2: Tipo de contribuyente + Régimen actual (Both exact h-11 height) */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-700">
-                        Tipo de contribuyente
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("personType")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.personType ===
-                          "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.personType === "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado SUNAT"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    <span className="block text-xs font-bold text-slate-800">
+                      Tipo de contribuyente
+                    </span>
+                    <div className="mt-1.5 grid h-11 grid-cols-2 gap-1.5 rounded-xl border border-slate-200 bg-slate-100/80 p-1">
                       <button
                         type="button"
                         onClick={() => setPersonType("PERSONA_NATURAL")}
                         className={
-                          "rounded-xl border py-2.5 px-3 text-center text-xs font-bold transition " +
+                          "whitespace-nowrap rounded-lg px-2 text-xs font-bold transition " +
                           (personType === "PERSONA_NATURAL"
-                            ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
+                            ? "bg-white text-blue-700 shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900")
                         }
                       >
-                        P. Natural (RUC 10)
+                        RUC 10 · P. Natural
                       </button>
                       <button
                         type="button"
                         onClick={() => setPersonType("PERSONA_JURIDICA")}
                         className={
-                          "rounded-xl border py-2.5 px-3 text-center text-xs font-bold transition " +
+                          "whitespace-nowrap rounded-lg px-2 text-xs font-bold transition " +
                           (personType === "PERSONA_JURIDICA"
-                            ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
+                            ? "bg-white text-blue-700 shadow-2xs"
+                            : "text-slate-600 hover:text-slate-900")
                         }
                       >
-                        P. Jurídica (RUC 20)
+                        RUC 20 · P. Jurídica
                       </button>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        NRUS solo admite Persona Natural
+                      </span>
+                      {renderOriginToggle("personType", "Consulta RUC")}
                     </div>
                   </div>
 
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="regime-select"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Régimen tributario actual
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("currentRegime")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.currentRegime ===
-                          "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.currentRegime ===
-                        "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado SUNAT"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
+                    <label
+                      htmlFor="regime-select"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Régimen tributario actual
+                    </label>
                     <select
                       id="regime-select"
                       value={currentRegime}
@@ -656,7 +651,7 @@ export function BusinessWizard() {
                           e.target.value as TaxRegimeCode | "SIN_REGIMEN"
                         )
                       }
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     >
                       <option value="NRUS">Nuevo RUS (NRUS)</option>
                       <option value="RER">
@@ -667,33 +662,24 @@ export function BusinessWizard() {
                       </option>
                       <option value="RG">Régimen General (RG)</option>
                     </select>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        Régimen registrado hoy en SUNAT
+                      </span>
+                      {renderOriginToggle("currentRegime", "Ficha RUC")}
+                    </div>
                   </div>
                 </div>
 
+                {/* Row 3: Actividad económica CIIU + Distrito (Concise option text so it never clips) */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="specialty-select"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Actividad económica (CIIU)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("ciiu")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.ciiu === "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.ciiu === "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado SUNAT"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
+                    <label
+                      htmlFor="specialty-select"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Actividad económica gastronómica (CIIU)
+                    </label>
                     <select
                       id="specialty-select"
                       value={restaurantSpecialty}
@@ -702,43 +688,44 @@ export function BusinessWizard() {
                         setRestaurantSpecialty(val);
                         setCiiu(val === "CATERING_EVENTOS" ? "5621" : "5610");
                       }}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     >
                       <option value="RESTAURANTE_MENU">
-                        CIIU 5610 · Restaurante de menú y carta
+                        5610 · Restaurante de menú y carta
                       </option>
                       <option value="POLLERIA_PARRILLERIA">
-                        CIIU 5610 · Pollería, parrillería o chifa
+                        5610 · Pollería, parrillería o chifa
                       </option>
                       <option value="PICANTERIA_TRADICIONAL">
-                        CIIU 5610 · Picantería, cevichería o comida típica
+                        5610 · Picantería o comida típica
                       </option>
                       <option value="CAFETERIA_FUENTE_SODA">
-                        CIIU 5610 · Cafetería, juguería o sanguchería
+                        5610 · Cafetería, juguería o sanguchería
                       </option>
                       <option value="CATERING_EVENTOS">
-                        CIIU 5621 · Suministro de comidas por encargo
+                        5621 · Catering y comidas por encargo
                       </option>
                     </select>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        Clasificación CIIU Rev. 4 aplicable
+                      </span>
+                      {renderOriginToggle("ciiu", "Ficha RUC")}
+                    </div>
                   </div>
 
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="district-select"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Distrito en Cajamarca
-                      </label>
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        Ubicación
-                      </span>
-                    </div>
+                    <label
+                      htmlFor="district-select"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Distrito del establecimiento en Cajamarca
+                    </label>
                     <select
                       id="district-select"
                       value={district}
                       onChange={(e) => setDistrict(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     >
                       <option value="Cajamarca">Cajamarca (Cercado)</option>
                       <option value="Los Baños del Inca">
@@ -749,6 +736,14 @@ export function BusinessWizard() {
                       <option value="Namora">Namora</option>
                       <option value="Magdalena">Magdalena</option>
                     </select>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        Provincia y departamento de Cajamarca
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        Ubicación
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -756,7 +751,7 @@ export function BusinessWizard() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
                   >
                     Siguiente: Ventas, Compras y Comprobantes →
                   </button>
@@ -765,8 +760,8 @@ export function BusinessWizard() {
             )}
 
             {step === 1 && (
-              <div className="space-y-5">
-                <div className="border-b border-slate-100 pb-3">
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-3.5">
                   <h2 className="text-lg font-extrabold text-slate-900">
                     Paso 2: Ventas, Compras de Insumos y Comprobantes
                   </h2>
@@ -776,99 +771,66 @@ export function BusinessWizard() {
                   </p>
                 </div>
 
+                {/* Row 1: Ventas mensuales + Ventas anuales (Aligned h-11 inputs) */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="monthly-sales"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Ventas brutas mensuales (S/)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("monthlyRevenue")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.monthlyRevenue ===
-                          "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.monthlyRevenue ===
-                        "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado PDT/Libros"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
+                    <label
+                      htmlFor="monthly-sales"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Ventas brutas mensuales (S/)
+                    </label>
                     <input
                       id="monthly-sales"
                       type="number"
                       min={0}
                       value={monthlyRevenue}
                       onChange={(e) => handleMonthlySalesChange(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Tope mensual NRUS: S/ 8,000.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        Tope mensual NRUS: S/ 8,000
+                      </span>
+                      {renderOriginToggle("monthlyRevenue", "Declaración/RVIE")}
+                    </div>
                   </div>
 
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="annual-sales"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Ventas brutas anuales proyectadas (S/)
-                      </label>
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        Anual (×12)
-                      </span>
-                    </div>
+                    <label
+                      htmlFor="annual-sales"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Ventas brutas anuales proyectadas (S/)
+                    </label>
                     <input
                       id="annual-sales"
                       type="number"
                       min={0}
                       value={annualRevenue}
                       onChange={(e) => setAnnualRevenue(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Tope anual NRUS: S/ 96,000 · RER: S/ 525,000 · RMT: 1,700
-                      UIT.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        Topes: NRUS S/ 96k · RER S/ 525k · RMT 1,700 UIT
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        Anual (×12)
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Purchases & Expenses in Balanced 2-Column + Full-Width Layout */}
+                {/* Row 2: Compras CON Factura + Compras SIN Factura (Aligned h-11 inputs) */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="purchases-invoice"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Compras mensuales CON Factura (S/)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("monthlyPurchases")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.monthlyPurchases ===
-                          "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.monthlyPurchases ===
-                        "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado RCE"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
+                    <label
+                      htmlFor="purchases-invoice"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Compras mensuales CON Factura (S/)
+                    </label>
                     <input
                       id="purchases-invoice"
                       type="number"
@@ -877,25 +839,23 @@ export function BusinessWizard() {
                       onChange={(e) =>
                         setMonthlyPurchasesWithInvoice(e.target.value)
                       }
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] font-semibold text-emerald-700">
-                      ✓ Otorga crédito fiscal de IGV (18%) y sustenta costo.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-emerald-700">
+                        ✓ Otorga crédito fiscal de IGV (18%)
+                      </span>
+                      {renderOriginToggle("monthlyPurchases", "Registro RCE")}
+                    </div>
                   </div>
 
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="purchases-no-invoice"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Compras SIN Factura / Boleta (S/)
-                      </label>
-                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                        Sin crédito IGV
-                      </span>
-                    </div>
+                    <label
+                      htmlFor="purchases-no-invoice"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Compras mensuales SIN Factura / Boleta (S/)
+                    </label>
                     <input
                       id="purchases-no-invoice"
                       type="number"
@@ -904,27 +864,28 @@ export function BusinessWizard() {
                       onChange={(e) =>
                         setMonthlyPurchasesWithoutInvoice(e.target.value)
                       }
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-amber-700">
-                      Compras en mercado con boleta o sin comprobante.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium text-amber-700">
+                        No otorga crédito fiscal de IGV
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+                        Boleta / Mercado
+                      </span>
+                    </div>
                   </div>
                 </div>
 
+                {/* Row 3: Otros gastos operativos formales (Full-width clean row) */}
                 <div>
-                  <div className="flex min-h-[26px] items-center justify-between gap-2">
-                    <label
-                      htmlFor="operating-expenses"
-                      className="text-xs font-bold text-slate-700"
-                    >
-                      Otros gastos operativos formales al mes (Planilla,
-                      alquiler con recibo/factura, luz, agua) (S/)
-                    </label>
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                      Deducible RMT / RG
-                    </span>
-                  </div>
+                  <label
+                    htmlFor="operating-expenses"
+                    className="block text-xs font-bold text-slate-800"
+                  >
+                    Otros gastos operativos formales al mes (Planilla, alquiler
+                    con recibo, luz, agua) (S/)
+                  </label>
                   <input
                     id="operating-expenses"
                     type="number"
@@ -933,77 +894,90 @@ export function BusinessWizard() {
                     onChange={(e) =>
                       setMonthlyOperatingExpenses(e.target.value)
                     }
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                   />
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500">
+                      Gastos deducibles para calcular la Renta Anual en el RMT y
+                      Régimen General
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                      Deducible RMT / RG
+                    </span>
+                  </div>
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <span className="block text-xs font-bold text-slate-700">
-                      ¿Tu restaurante necesita emitir Facturas a empresas?
-                    </span>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setNeedsFacturas(false)}
-                        className={
-                          "rounded-xl border py-2.5 px-3 text-xs font-bold transition " +
-                          (!needsFacturas
-                            ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
+                {/* Row 4: Necesidad de emitir Facturas (Full-width 2-column horizontal cards) */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <span className="block text-xs font-bold text-slate-800">
+                    ¿Tu restaurante necesita emitir Facturas a empresas o
+                    instituciones?
+                  </span>
+                  <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setNeedsFacturas(false)}
+                      className={
+                        "flex h-11 items-center justify-center rounded-xl border px-4 text-xs font-bold transition " +
+                        (!needsFacturas
+                          ? "border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-600/15"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50")
+                      }
+                    >
+                      No, solo emite Boletas de Venta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNeedsFacturas(true);
+                        if (!emittedReceipts.includes("FACTURA")) {
+                          setEmittedReceipts([...emittedReceipts, "FACTURA"]);
                         }
-                      >
-                        No, solo Boletas
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNeedsFacturas(true);
-                          if (!emittedReceipts.includes("FACTURA")) {
-                            setEmittedReceipts([...emittedReceipts, "FACTURA"]);
-                          }
-                        }}
-                        className={
-                          "rounded-xl border py-2.5 px-3 text-xs font-bold transition " +
-                          (needsFacturas
-                            ? "border-blue-600 bg-blue-50 text-blue-800"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50")
-                        }
-                      >
-                        Sí, emite Facturas
-                      </button>
-                    </div>
+                      }}
+                      className={
+                        "flex h-11 items-center justify-center rounded-xl border px-4 text-xs font-bold transition " +
+                        (needsFacturas
+                          ? "border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-600/15"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50")
+                      }
+                    >
+                      Sí, necesita emitir Facturas (RUC 20)
+                    </button>
                   </div>
+                </div>
 
-                  <div>
-                    <span className="block text-xs font-bold text-slate-700">
-                      Comprobantes utilizados en el restaurante
-                    </span>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {(
-                        [
-                          { code: "BOLETA", label: "Boleta de Venta" },
-                          { code: "FACTURA", label: "Factura" },
-                          { code: "TICKET", label: "Ticket POS" },
-                          { code: "NOTA_CREDITO", label: "Nota de Crédito" },
-                        ] as const
-                      ).map((item) => (
+                {/* Row 5: Comprobantes utilizados (Full-width 4-column equal pills) */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <span className="block text-xs font-bold text-slate-800">
+                    Comprobantes de pago utilizados en el restaurante
+                  </span>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                    {(
+                      [
+                        { code: "BOLETA", label: "Boleta de Venta" },
+                        { code: "FACTURA", label: "Factura" },
+                        { code: "TICKET", label: "Ticket POS" },
+                        { code: "NOTA_CREDITO", label: "Nota de Crédito" },
+                      ] as const
+                    ).map((item) => {
+                      const active = emittedReceipts.includes(item.code);
+                      return (
                         <button
                           key={item.code}
                           type="button"
                           onClick={() => toggleReceipt(item.code)}
                           className={
-                            "rounded-xl border px-3 py-2 text-xs font-bold transition " +
-                            (emittedReceipts.includes(item.code)
-                              ? "border-blue-600 bg-blue-50 text-blue-800"
-                              : "border-slate-200 text-slate-600 hover:bg-slate-50")
+                            "flex h-10 items-center justify-center whitespace-nowrap rounded-xl border px-3 text-xs font-bold transition " +
+                            (active
+                              ? "border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-600/15"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50")
                           }
                         >
-                          {emittedReceipts.includes(item.code) ? "✓ " : ""}
+                          {active ? "✓ " : ""}
                           {item.label}
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1018,7 +992,7 @@ export function BusinessWizard() {
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
                   >
                     Siguiente: Locales, Personal y Activos →
                   </button>
@@ -1027,8 +1001,8 @@ export function BusinessWizard() {
             )}
 
             {step === 2 && (
-              <div className="space-y-5">
-                <div className="border-b border-slate-100 pb-3">
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-3.5">
                   <h2 className="text-lg font-extrabold text-slate-900">
                     Paso 3: Establecimientos, Trabajadores por Turno y Activos
                     Fijos
@@ -1039,19 +1013,15 @@ export function BusinessWizard() {
                   </p>
                 </div>
 
+                {/* Row 1: Establecimientos + Trabajadores por turno (Aligned h-11 inputs) */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="establishments-input"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Número de establecimientos abiertos
-                      </label>
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        Tope NRUS: 1
-                      </span>
-                    </div>
+                    <label
+                      htmlFor="establishments-input"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Número de establecimientos abiertos
+                    </label>
                     <input
                       id="establishments-input"
                       type="number"
@@ -1059,36 +1029,25 @@ export function BusinessWizard() {
                       max={20}
                       value={establishmentCount}
                       onChange={(e) => setEstablishmentCount(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      El Nuevo RUS permite operar únicamente en 1 local.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        NRUS permite máximo 1 local (unidad de explotación)
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        Tope NRUS: 1
+                      </span>
+                    </div>
                   </div>
 
                   <div>
-                    <div className="flex min-h-[26px] items-center justify-between gap-2">
-                      <label
-                        htmlFor="workers-shift"
-                        className="text-xs font-bold text-slate-700"
-                      >
-                        Cantidad máxima de trabajadores por turno
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleOrigin("employees")}
-                        className={
-                          "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                          (dataOrigins.employees === "VERIFICADO_FUENTE_OFICIAL"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800")
-                        }
-                      >
-                        {dataOrigins.employees === "VERIFICADO_FUENTE_OFICIAL"
-                          ? "✓ Verificado PLAME"
-                          : "✎ Declarado usuario"}
-                      </button>
-                    </div>
+                    <label
+                      htmlFor="workers-shift"
+                      className="block text-xs font-bold text-slate-800"
+                    >
+                      Cantidad máxima de trabajadores por turno
+                    </label>
                     <input
                       id="workers-shift"
                       type="number"
@@ -1096,61 +1055,51 @@ export function BusinessWizard() {
                       max={200}
                       value={employeesPerShift}
                       onChange={(e) => setEmployeesPerShift(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      El RER permite como máximo 10 trabajadores por turno.
-                    </p>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        El RER permite máximo 10 trabajadores por turno
+                      </span>
+                      {renderOriginToggle("employees", "Planilla PLAME")}
+                    </div>
                   </div>
                 </div>
 
+                {/* Row 2: Valor de activos fijos (Full-width clean row) */}
                 <div>
-                  <div className="flex min-h-[26px] items-center justify-between gap-2">
-                    <label
-                      htmlFor="fixed-assets"
-                      className="text-xs font-bold text-slate-700"
-                    >
-                      Valor estimado de activos fijos (hornos, congeladoras,
-                      cocina industrial, mobiliario de salón) (S/)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => toggleOrigin("fixedAssetsValue")}
-                      className={
-                        "rounded-md px-2 py-0.5 text-[10px] font-bold transition " +
-                        (dataOrigins.fixedAssetsValue ===
-                        "VERIFICADO_FUENTE_OFICIAL"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-800")
-                      }
-                    >
-                      {dataOrigins.fixedAssetsValue ===
-                      "VERIFICADO_FUENTE_OFICIAL"
-                        ? "✓ Verificado"
-                        : "✎ Declarado usuario"}
-                    </button>
-                  </div>
+                  <label
+                    htmlFor="fixed-assets"
+                    className="block text-xs font-bold text-slate-800"
+                  >
+                    Valor estimado de activos fijos del restaurante (hornos,
+                    congeladoras, cocina industrial, mobiliario) (S/)
+                  </label>
                   <input
                     id="fixed-assets"
                     type="number"
                     min={0}
                     value={fixedAssetsValue}
                     onChange={(e) => setFixedAssetsValue(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Sin incluir predios ni vehículos. Límite NRUS: S/ 70,000 ·
-                    Límite RER: S/ 126,000.
-                  </p>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500">
+                      Sin incluir predios ni vehículos · Límite NRUS: S/ 70,000
+                      · Límite RER: S/ 126,000
+                    </span>
+                    {renderOriginToggle("fixedAssetsValue", "Inventario/Libros")}
+                  </div>
                 </div>
 
+                {/* Row 3: Condiciones RMT */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <span className="text-xs font-bold text-slate-800">
                     Condiciones adicionales de exclusión del RMT (D. Leg. N.°
                     1269):
                   </span>
-                  <div className="mt-2.5 space-y-2 text-xs text-slate-700">
-                    <label className="flex items-start gap-2.5">
+                  <div className="mt-2.5 space-y-2.5 text-xs text-slate-700">
+                    <label className="flex cursor-pointer items-start gap-2.5">
                       <input
                         type="checkbox"
                         checked={hasCorporateLinkageOverLimit}
@@ -1164,7 +1113,7 @@ export function BusinessWizard() {
                         ingresos conjuntos superen las 1,700 UIT?
                       </span>
                     </label>
-                    <label className="flex items-start gap-2.5">
+                    <label className="flex cursor-pointer items-start gap-2.5">
                       <input
                         type="checkbox"
                         checked={isForeignBranch}
@@ -1225,7 +1174,7 @@ export function BusinessWizard() {
                     </span>
                     <span
                       className={
-                        "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                        "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                         (liveEval.currentRegimeDiagnostic.status ===
                         "COMPATIBLE"
                           ? "bg-emerald-100 text-emerald-800"
@@ -1253,7 +1202,7 @@ export function BusinessWizard() {
                     key={rec.regime}
                     className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5 text-xs"
                   >
-                    <span className="font-bold text-slate-800">
+                    <span className="min-w-0 truncate font-bold text-slate-800">
                       {rec.regime} ·{" "}
                       <span className="font-medium text-slate-600">
                         {rec.name.replace(/\s*\(.*?\)/, "")}
@@ -1261,7 +1210,7 @@ export function BusinessWizard() {
                     </span>
                     <span
                       className={
-                        "shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                        "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
                         (rec.status === "COMPATIBLE"
                           ? "bg-emerald-100 text-emerald-800"
                           : rec.status === "INCOMPATIBLE"

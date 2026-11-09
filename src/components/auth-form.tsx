@@ -18,7 +18,11 @@ import {
   scopedStorageKey,
   type LocalAccount,
 } from "@/lib/account-storage";
-import { getFirebaseAuth, getGoogleProvider, isFirebaseConfigured } from "@/lib/firebase/client";
+import {
+  getFirebaseAuth,
+  getGoogleProvider,
+  isFirebaseConfigured,
+} from "@/lib/firebase/client";
 
 function getErrorMessage(error: AuthError): string {
   switch (error.code) {
@@ -66,7 +70,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   function redirectAfterAuth(fromRegister: boolean) {
     try {
-      const hasSavedContext = Boolean(localStorage.getItem(scopedStorageKey("efp-business-context")));
+      const hasSavedContext = Boolean(
+        localStorage.getItem(scopedStorageKey("efp-business-context"))
+      );
       if (hasSavedContext && !fromRegister) {
         router.push("/negocios?seccion=diagnostico");
         return;
@@ -83,7 +89,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   async function handleGoogleSignIn() {
     const auth = getFirebaseAuth();
     if (!auth) {
-      setMessage("Firebase no está configurado aún. Puedes usar el modo local o cuentas guardadas.");
+      setMessage(
+        "Firebase no está configurado aún. Puedes usar el modo local o cuentas guardadas."
+      );
       return;
     }
     setLoading(true);
@@ -92,7 +100,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       const provider = getGoogleProvider();
       const res = await signInWithPopup(auth, provider);
       const email = res.user.email || "usuario@google.com";
-      const name = res.user.displayName || email.split("@")[0] || "Emprendedor";
+      const name =
+        res.user.displayName || email.split("@")[0] || "Propietario";
       activateAccount(email, name);
       redirectAfterAuth(false);
     } catch (err) {
@@ -110,11 +119,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") || "").trim();
     const password = String(data.get("password") || "");
-    const name = String(data.get("name") || "").trim() || email.split("@")[0] || "Emprendedor";
+    const name =
+      String(data.get("name") || "").trim() ||
+      email.split("@")[0] ||
+      "Propietario";
     const auth = getFirebaseAuth();
 
     if (!auth) {
-      // Modo local/demo tolerante cuando aún no se han configurado credenciales de Firebase
       if (isRegister) {
         const created = saveDemoAccount(email, name);
         if (!created) {
@@ -125,7 +136,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       } else {
         const activated = activateDemoAccount(email);
         if (!activated) {
-          setMessage("No encontramos una cuenta con ese correo. Cambia a la pestaña «Crear cuenta» para registrarte.");
+          setMessage(
+            "No encontramos una cuenta con ese correo. Cambia a la pestaña «Crear cuenta» para registrarte."
+          );
           setLoading(false);
           return;
         }
@@ -136,13 +149,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
     try {
       if (isRegister) {
-        const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        const userCred = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
         if (name && userCred.user) {
           await updateProfile(userCred.user, { displayName: name });
         }
         activateAccount(email, name);
       } else {
-        const userCred = await signInWithEmailAndPassword(auth, email, password);
+        const userCred = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
         const displayName = userCred.user.displayName || name;
         activateAccount(email, displayName);
       }
@@ -159,10 +180,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <AppHeader />
 
       <main className="mx-auto flex max-w-5xl flex-col items-center justify-center px-4 py-10 sm:px-8 sm:py-14">
-        <div className="w-full max-w-[430px]">
+        <div className="w-full max-w-[440px]">
           {requiresSessionNotice && (
             <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-3.5 text-center text-xs font-bold text-blue-800">
-              🔒 Inicia sesión o crea tu cuenta gratuita para realizar el cuestionario y acceder a tu panel.
+              🔒 Inicia sesión o crea tu cuenta gratuita para registrar la ficha
+              tributaria de tu restaurante.
             </div>
           )}
 
@@ -177,7 +199,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 }}
                 className={
                   "rounded-xl py-2.5 transition " +
-                  (!isRegister ? "bg-white text-blue-600 shadow-2xs" : "text-slate-500 hover:text-slate-900")
+                  (!isRegister
+                    ? "bg-white text-blue-600 shadow-2xs"
+                    : "text-slate-500 hover:text-slate-900")
                 }
               >
                 Iniciar sesión
@@ -190,7 +214,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 }}
                 className={
                   "rounded-xl py-2.5 transition " +
-                  (isRegister ? "bg-white text-blue-600 shadow-2xs" : "text-slate-500 hover:text-slate-900")
+                  (isRegister
+                    ? "bg-white text-blue-600 shadow-2xs"
+                    : "text-slate-500 hover:text-slate-900")
                 }
               >
                 Crear cuenta
@@ -199,15 +225,15 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
             <div className="mt-6 text-center">
               <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-xl">
-                {isRegister ? "🚀" : "👋"}
+                {isRegister ? "🍽️" : "👋"}
               </span>
               <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">
                 {isRegister ? "Crea tu cuenta" : "Bienvenido a Crea"}
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
                 {isRegister
-                  ? "Regístrate en segundos para iniciar el cuestionario de tu negocio."
-                  : "Ingresa a tu cuenta para ver tu panel o evaluar tu negocio."}
+                  ? "Regístrate para evaluar y organizar las obligaciones tributarias de tu restaurante en Cajamarca."
+                  : "Ingresa para consultar el diagnóstico, simulador y cronograma SUNAT de tu restaurante."}
               </p>
             </div>
 
@@ -218,7 +244,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   type="button"
                   disabled={loading}
                   onClick={handleGoogleSignIn}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-60"
+                  className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-60"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24">
                     <path
@@ -270,10 +296,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                         <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white uppercase">
                           {acc.name.slice(0, 1)}
                         </span>
-                        <span className="truncate font-bold text-slate-800">{acc.name}</span>
-                        <span className="truncate text-slate-400">({acc.email})</span>
+                        <span className="truncate font-bold text-slate-800">
+                          {acc.name}
+                        </span>
+                        <span className="truncate text-slate-400">
+                          ({acc.email})
+                        </span>
                       </span>
-                      <span className="shrink-0 font-bold text-blue-600">Entrar →</span>
+                      <span className="shrink-0 font-bold text-blue-600">
+                        Entrar →
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -283,11 +315,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             <form onSubmit={submit} className="mt-5 space-y-3.5">
               {isRegister && (
                 <label className="block text-xs font-bold text-slate-700">
-                  Nombre completo
+                  Nombre del propietario o administrador
                   <input
                     required
                     name="name"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white"
+                    className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white"
                     placeholder="Ej. María Rojas"
                   />
                 </label>
@@ -299,7 +331,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   required
                   name="email"
                   type="email"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white"
+                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white"
                   placeholder="nombre@correo.com"
                 />
               </label>
@@ -311,26 +343,29 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   name="password"
                   minLength={6}
                   type="password"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white"
+                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white"
                   placeholder="Mínimo 6 caracteres"
                 />
               </label>
 
               {message && (
-                <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">
+                <p
+                  role="alert"
+                  className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700"
+                >
                   {message}
                 </p>
               )}
 
               <button
                 disabled={loading}
-                className="mt-2 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/15 transition hover:bg-blue-700 disabled:opacity-60"
+                className="mt-2 h-11 w-full rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-md shadow-blue-600/15 transition hover:bg-blue-700 disabled:opacity-60"
               >
                 {loading
                   ? "Cargando…"
                   : isRegister
-                  ? "Crear cuenta e ir al cuestionario →"
-                  : "Iniciar sesión →"}
+                    ? "Crear cuenta e ir a «Mi restaurante» →"
+                    : "Iniciar sesión →"}
               </button>
             </form>
           </div>

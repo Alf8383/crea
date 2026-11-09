@@ -8,7 +8,9 @@ export function RequirementDetail({ id }: { id: string }) {
     return (
       <div className="min-h-screen bg-[#f8fafc] text-slate-900">
         <AppHeader />
-        <main className="mx-auto max-w-3xl px-4 py-12 text-center">No encontramos este requisito.</main>
+        <main className="mx-auto max-w-3xl px-4 py-12 text-center">
+          No encontramos este requisito tributario.
+        </main>
       </div>
     );
   }
@@ -18,23 +20,38 @@ export function RequirementDetail({ id }: { id: string }) {
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-8">
-        <Link href="/negocios/demo/ruta" className="text-xs font-bold text-blue-600 hover:underline">
-          ← Volver a mi ruta de formalización
+        <Link
+          href="/negocios?seccion=obligaciones"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-blue-600 shadow-2xs transition hover:border-blue-300 hover:bg-blue-50"
+        >
+          ← Volver a Mis obligaciones del restaurante
         </Link>
 
         <article className="mt-4 rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs sm:p-8">
-          <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">{requirement.category}</span>
-          <h1 className="mt-3 text-2xl font-extrabold text-slate-900 sm:text-3xl">{requirement.title}</h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">{requirement.description}</p>
+          <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+            {requirement.category}
+          </span>
+          <h1 className="mt-3 text-2xl font-extrabold text-slate-900 sm:text-3xl">
+            {requirement.title}
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">
+            {requirement.description}
+          </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <section className="rounded-2xl bg-slate-50 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Entidad competente</h2>
-              <p className="mt-1 text-sm font-bold text-slate-900">{requirement.institution}</p>
+            <section className="rounded-2xl border border-slate-200/80 bg-slate-50 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Entidad competente
+              </h2>
+              <p className="mt-1 text-sm font-bold text-slate-900">
+                {requirement.institution}
+              </p>
             </section>
-            <section className="rounded-2xl bg-slate-50 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Referencias / requisitos</h2>
-              <ul className="mt-1 space-y-1 text-xs font-medium text-slate-700">
+            <section className="rounded-2xl border border-slate-200/80 bg-slate-50 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Documentos e información a preparar
+              </h2>
+              <ul className="mt-1.5 space-y-1 text-xs font-medium text-slate-700">
                 {requirement.documents.map((document) => (
                   <li key={document}>• {document}</li>
                 ))}
@@ -43,8 +60,10 @@ export function RequirementDetail({ id }: { id: string }) {
           </div>
 
           {source && (
-            <section className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-              <p className="text-xs font-bold text-blue-700">Fuente oficial vinculada</p>
+            <section className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+              <p className="text-xs font-bold text-blue-700">
+                Fuente oficial verificable vinculada
+              </p>
               <a
                 className="mt-1 inline-block text-sm font-extrabold text-slate-900 underline hover:text-blue-600"
                 href={source.url}
