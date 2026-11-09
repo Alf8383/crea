@@ -8,147 +8,249 @@ export type Question = {
   when?: (answers: Answers) => boolean;
   optional?: boolean;
 };
+
 const choice = (items: string[]) => items.map((label) => ({ value: label, label }));
 const yes = choice(["Sí", "No", "Aún no lo sé"]);
 const more = (id: string) => (answers: Answers) => answers[id] === "Sí";
 const business = (values: string[]) => choice(values);
 
-export const sectionNames = ["Tu negocio", "Cómo funcionará", "Ventas y tributación", "Situación actual", "Resultado"];
+export const sectionNames = [
+  "Identificación del restaurante",
+  "Locales y modalidad de atención",
+  "Ventas, compras y recursos",
+  "Situación tributaria actual",
+  "Resultado",
+];
 
+/**
+ * Cuestionario dinámico orientado exclusivamente a restaurantes formalizados de Cajamarca.
+ * Nota de seguridad: Nunca solicita Clave SOL ni credenciales de SUNAT.
+ */
 export const questions: Question[][] = [
   [
-    { id:"P01", title:"¿Qué tipo de negocio quieres abrir o ya tienes?", help:"Busca y selecciona el rubro más cercano a tu idea. Si no aparece, elige “Otro” y escríbelo.", options:business(["Restaurante / alimentos","Tienda / comercio","Tecnología","Servicios","Construcción","Transporte","Manufactura","Turismo","Hospedaje","Educación","Salud","Belleza","Agropecuario","Importación","Exportación","Entretenimiento","Otro"]) },
-    { id:"P02", title:"¿Qué planeas ofrecer cuando empieces?", kind:"text", help:"Cuéntanos con tus palabras qué producto venderás o qué servicio darás. No necesitas haber vendido ni conocer un código CIIU." },
-    { id:"P03", title:"¿En qué etapa se encuentra tu negocio?", help:"Elige la respuesta que mejor describe tu situación actual.", options:business(["Solo tengo la idea","Estoy preparando el negocio","Ya realizo algunas ventas","Ya opero regularmente","Estoy formalizado parcialmente","Ya tengo una empresa formalizada"]) },
-    { id:"P04", title:"¿Dónde funcionará principalmente tu negocio?", help:"Selecciona la ubicación principal donde operará tu negocio. Usaremos esta información para orientarte sobre requisitos y trámites de tu zona.", kind:"department" },
-    { id:"P05", title:"¿En qué provincia?", kind:"province" },
-    { id:"P06", title:"¿En qué distrito?", kind:"district", help:"El catálogo de distritos está en ampliación. Si no encuentras el tuyo, podrás escribirlo." },
-    { id:"P07", title:"¿Cuántas personas serán propietarias?", options:business(["Solo yo","2 personas","3 personas","4 o más","Aún no está definido"]) },
-    { id:"P08", title:"¿Qué aportarán los propietarios?", options:business(["Dinero","Bienes o equipos","Ambos","Todavía no lo definimos","No lo sé"]), when:a=>["2 personas","3 personas","4 o más"].includes(String(a.P07)) },
-    { id:"P09", title:"¿Cómo quieres operar legalmente?", help:"Usa la lupita para conocer las dos opciones. Si todavía no te decides, podrás elegirlo y recibir una comparación más detallada en tus recomendaciones.", options:business(["Persona natural","Persona jurídica / empresa","Todavía no lo sé"]) },
+    {
+      id: "P01",
+      title: "¿Cuál es la especialidad principal de tu restaurante?",
+      help: "El sistema está especializado en establecimientos gastronómicos y actividades de servicio de comidas y bebidas (CIIU 5610 / 5621).",
+      options: business([
+        "Restaurante / alimentos",
+        "Pollería, parrillería o chifa",
+        "Picantería, cevichería o comida típica cajamarquina",
+        "Cafetería, fuente de soda o juguería",
+        "Catering y preparación de comidas por encargo",
+      ]),
+    },
+    {
+      id: "P02",
+      title: "Nombre comercial y descripción breve del servicio de tu restaurante",
+      kind: "text",
+      help: "Ejemplo: Restaurante El Cumbe — venta de menú diario, platos a la carta y atención de almuerzos corporativos.",
+    },
+    {
+      id: "P03",
+      title: "¿Cuál es el estado actual del establecimiento?",
+      help: "Esta plataforma evalúa restaurantes formalizados con RUC en Cajamarca.",
+      options: business([
+        "Ya tengo un restaurante formalizado con RUC activo",
+        "Tengo RUC y estoy actualizando mi régimen tributario",
+      ]),
+    },
+    {
+      id: "P04",
+      title: "Departamento donde opera el restaurante",
+      help: "Investigación focalizada en restaurantes formalizados de Cajamarca.",
+      kind: "department",
+    },
+    {
+      id: "P05",
+      title: "Provincia",
+      kind: "province",
+    },
+    {
+      id: "P06",
+      title: "Distrito de Cajamarca",
+      kind: "district",
+      help: "Selecciona el distrito donde se ubica el establecimiento principal (ej. Cajamarca, Los Baños del Inca).",
+    },
+    {
+      id: "P09",
+      title: "¿Bajo qué tipo de contribuyente está inscrito el RUC del restaurante?",
+      help: "El RUC 10 corresponde a Persona Natural con Negocio; el RUC 20 corresponde a Persona Jurídica (E.I.R.L., S.R.L., S.A.C.).",
+      options: business([
+        "Persona natural",
+        "Persona jurídica / empresa",
+        "Todavía no lo sé",
+      ]),
+    },
   ],
   [
-    { id:"P10", title:"¿Tendrás un local físico?", options:business(["Sí","No","Todavía no lo sé"]) },
-    { id:"P11", title:"¿Cómo usarás ese local?", options:business(["Propio","Alquilado","Cedido","Compartido","Todavía no lo definí"]), when:more("P10") },
-    { id:"P12", title:"¿Atenderás clientes allí?", options:business(["Sí","No","Algunas veces","Aún no lo sé"]), when:more("P10") },
-    { id:"P13", title:"¿Tendrás almacén o espacio para guardar productos?", options:yes, when:more("P10") },
-    { id:"P14", title:"¿Harás obras o modificaciones importantes en el local?", options:yes, when:more("P10") },
-    { id:"P15", title:"¿Cómo funcionará principalmente el negocio?", options:business(["Solo por Internet","Desde mi vivienda","En el domicilio de clientes","De manera ambulante o itinerante","Otro","Aún no lo sé"]), when:a=>a.P10==="No" },
-    { id:"P16", title:"¿Qué ofrecerás principalmente?", options:business(["Productos","Servicios","Productos y servicios","Aún no lo sé"]) },
-    { id:"P17", title:"Describe tus productos o servicios", kind:"text", help:"Ejemplo: menú diario, platos a la carta y bebidas." },
-    { id:"P18", title:"¿Fabricarás tus propios productos?", options:business(["Sí","No","Algunos","No aplica","Aún no lo sé"]) },
-    { id:"P19", title:"¿Comprarás productos para revenderlos?", options:business(["Sí","No","Algunos","Aún no lo sé"]) },
+    {
+      id: "P10",
+      title: "¿El restaurante atiende al público en un establecimiento físico?",
+      options: business(["Sí", "No", "Todavía no lo sé"]),
+    },
+    {
+      id: "P11",
+      title: "¿En qué condición utilizas el local del restaurante?",
+      options: business(["Propio", "Alquilado", "Cedido", "Compartido"]),
+      when: more("P10"),
+    },
+    {
+      id: "P12",
+      title: "¿Cuántos locales o establecimientos abiertos tiene el restaurante (incluyendo sucursales o almacenes)?",
+      help: "El Nuevo RUS solo permite operar en una (1) sola unidad de explotación.",
+      options: business([
+        "1 solo establecimiento",
+        "2 o más establecimientos",
+      ]),
+      when: more("P10"),
+    },
+    {
+      id: "P17",
+      title: "Describe los platos, menús o servicios gastronómicos principales",
+      kind: "text",
+      help: "Ejemplo: menú ejecutivo, platos típicos, parrillas, cafetería o catering para empresas.",
+    },
   ],
   [
-    { id:"P20", title:"Cuando empieces, ¿cuánto esperas cobrar en un mes?", kind:"range", help:"No preguntamos cuánto has vendido hasta ahora. Es una estimación del total que cobrarías antes de restar gastos. Si ofreces cosas con precios distintos, agrega cada producto o servicio por separado en la calculadora. Si aún no tienes idea, puedes elegir “Todavía no puedo estimarlo”." },
-    { id:"P21", title:"¿De dónde sale esa cifra?", options:business(["Es una estimación porque aún no inicio","Es aproximadamente lo que vendo hoy","Es un promedio de ventas anteriores","No pude estimarlo"]) },
-    { id:"P22", title:"¿A quiénes venderás principalmente?", options:business(["Personas","Empresas","Estado","Personas y empresas","Personas, empresas y Estado","Todavía no lo sé"]) },
-    { id:"P23", title:"¿Tus clientes podrían solicitar factura?", help:"Una factura permite al cliente sustentar un gasto o crédito fiscal. Esta respuesta importa para comparar el Nuevo RUS.", options:business(["Sí, frecuentemente","Sí, algunas veces","Probablemente muy pocas veces","No, venderé solo a consumidores finales","No lo sé todavía"]) },
-    { id:"P24", title:"¿Cómo esperas recibir pagos?", kind:"multiple", options:business(["Efectivo","Transferencia bancaria","Billetera digital","Tarjeta","Pasarela de pago online","Crédito","Otro","Aún no lo sé"]) },
-    { id:"P25", title:"¿Ofrecerás tus productos o servicios por Internet?", help:"Incluye vender productos, recibir pedidos o reservas, o brindar servicios en línea.", options:business(["Sí","No","Tal vez"]) },
-    { id:"P25.1", title:"¿Por dónde ofrecerás tus productos o servicios?", help:"Puedes elegir más de una opción.", kind:"multiple", options:business(["Página web propia","Redes sociales","Mercado en línea","Aplicación o plataforma de servicios","WhatsApp","Videollamadas","Correo electrónico","Otro","Aún no lo sé"]), when:more("P25") },
-    { id:"P26", title:"¿Venderás fuera de tu ciudad o región?", options:business(["Sí","No","Aún no lo sé"]) },
-    { id:"P27", title:"¿Planeas vender al extranjero?", options:business(["Sí","No","Tal vez en el futuro"]) },
-    { id:"P28", title:"¿Tendrás trabajadores además de los propietarios?", options:business(["Sí","No","Todavía no lo sé"]) },
-    { id:"P29", title:"¿Cuántos trabajadores estimas tener?", kind:"number", when:more("P28") },
-    { id:"P29.1", title:"¿Cuántos trabajarían al mismo tiempo en un turno?", kind:"number", help:"Este dato se usa en la evaluación del RER.", when:more("P28") },
-    { id:"P30", title:"¿Cómo trabajarían principalmente?", options:business(["Tiempo completo","Tiempo parcial","Temporales","Por temporadas","Combinación","Todavía no lo sé"]), when:more("P28") },
-    { id:"P31", title:"¿Alguno realizaría actividades con riesgos especiales?", help:"Por ejemplo maquinaria, químicos, trabajos en altura o altas temperaturas.", options:yes, when:more("P28") },
-    { id:"TAX_PURCHASES", title:"¿Cuánto gastarías al mes en productos o materiales para tu negocio?", kind:"number", help:"Cuenta la mercadería que revendes y los ingredientes, materiales o insumos que usas para ofrecer tus servicios. No incluyas alquiler, sueldos ni otros gastos. Si aún no lo sabes, puedes continuar.", optional:true },
-    { id:"TAX_ASSETS", title:"¿Cuánto valen los activos fijos del negocio?", kind:"number", help:"Equipos y maquinaria; no incluyas predios ni vehículos. Si no lo sabes, puedes continuar.", optional:true },
+    {
+      id: "P20",
+      title: "¿Cuál es el promedio de ventas mensuales brutas del restaurante (S/)?",
+      kind: "range",
+      help: "Ingresa el monto mensual aproximado de ventas totales (salón, para llevar y delivery). El sistema calculará también la proyección anual.",
+    },
+    {
+      id: "P22",
+      title: "¿A qué tipo de clientes atiende tu restaurante?",
+      options: business([
+        "Personas (consumidores finales)",
+        "Personas y empresas / instituciones",
+        "Principalmente empresas o instituciones",
+      ]),
+    },
+    {
+      id: "P23",
+      title: "¿Tu restaurante necesita emitir Facturas a empresas o instituciones?",
+      help: "Si atiendes almuerzos corporativos, eventos o clientes con RUC 20 que solicitan factura para sustentar gasto o crédito fiscal, el Nuevo RUS resulta incompatible.",
+      options: business([
+        "Sí, frecuentemente",
+        "Sí, algunas veces",
+        "No, vendo solo a consumidores finales con boleta",
+        "No lo sé todavía",
+      ]),
+    },
+    {
+      id: "P24",
+      title: "¿Qué medios de pago utiliza el restaurante?",
+      kind: "multiple",
+      options: business([
+        "Efectivo",
+        "Billetera digital (Yape / Plin)",
+        "Tarjeta de débito / crédito (POS)",
+        "Transferencia bancaria",
+      ]),
+    },
+    {
+      id: "P28",
+      title: "¿El restaurante cuenta con trabajadores (cocina, salón, caja, limpieza)?",
+      options: business(["Sí", "No", "Todavía no lo sé"]),
+    },
+    {
+      id: "P29",
+      title: "¿Cuántos trabajadores en total laboran en el restaurante?",
+      kind: "number",
+      when: more("P28"),
+    },
+    {
+      id: "P29.1",
+      title: "¿Cuántos trabajadores laboran como máximo por turno en el restaurante?",
+      kind: "number",
+      help: "El Régimen Especial de Renta (RER) establece un tope máximo de 10 trabajadores por turno.",
+      when: more("P28"),
+    },
+    {
+      id: "TAX_PURCHASES",
+      title: "¿Cuánto compra al mes el restaurante en insumos (carnes, verduras, abarrotes, bebidas, gas)?",
+      kind: "number",
+      help: "Monto total mensual de compras de insumos y materiales para la operación gastronómica.",
+      optional: false,
+    },
+    {
+      id: "TAX_ASSETS",
+      title: "¿Cuál es el valor estimado de los activos fijos del restaurante (hornos, congeladoras, cocina industrial, mobiliario)?",
+      kind: "number",
+      help: "No incluyas el valor del inmueble ni vehículos. El Nuevo RUS tiene límite de S/ 70,000 y el RER de S/ 126,000.",
+      optional: false,
+    },
   ],
   [
-    { id:"P32", title:"¿Actualmente tienes RUC?", options:yes },
-    { id:"P33", title:"¿A quién corresponde el RUC?", options:business(["Persona natural","Empresa","No lo sé"]), when:more("P32") },
-    { id:"P34", title:"¿Conoces tu régimen tributario actual?", options:yes, when:more("P32") },
-    { id:"P34.1", title:"¿En qué régimen estás actualmente?", options:business(["Nuevo RUS","RER","RMT","Régimen General","Otro","No aparece en la lista"]), when:more("P34") },
-    { id:"P35", title:"¿Tienes Clave SOL?", help:"Es la clave para realizar trámites en SUNAT por Internet.", options:business(["Sí","No","No sé qué es"]), when:more("P32") },
-    { id:"P36", title:"¿Actualmente emites comprobantes de pago?", options:yes, when:more("P32") },
-    { id:"P36.1", title:"¿Cuáles emites?", kind:"multiple", options:business(["Boleta","Factura","Nota de crédito","Recibo por honorarios","Otro","No lo sé"]), when:more("P36") },
-    { id:"P37", title:"¿Tu negocio ya está constituido legalmente?", options:business(["Sí","No","En proceso","No lo sé"]) },
-    { id:"P38", title:"¿Tienes licencia de funcionamiento?", options:business(["Sí","No","En trámite","No aplica / no tengo local","No lo sé"]), when:a=>a.P10==="Sí" },
-    { id:"P39", title:"¿Tienes inspección de seguridad del local?", options:business(["Sí","No","En trámite","No aplica","No lo sé"]), when:a=>a.P10==="Sí" },
-    { id:"P40", title:"¿Cuentas con permisos propios de tu actividad?", options:business(["Sí","No","No sé si los necesito"]) },
-    { id:"P40.1", title:"¿Qué permisos tienes?", kind:"text", when:more("P40") },
+    {
+      id: "P32",
+      title: "¿Confirmas que el restaurante cuenta con número de RUC activo?",
+      options: yes,
+    },
+    {
+      id: "P34",
+      title: "¿Conoces el régimen tributario actual en el que está inscrito tu restaurante?",
+      options: yes,
+      when: more("P32"),
+    },
+    {
+      id: "P34.1",
+      title: "¿Cuál es el régimen tributario actual del restaurante?",
+      options: business([
+        "Nuevo RUS",
+        "RER",
+        "RMT",
+        "Régimen General",
+      ]),
+      when: more("P34"),
+    },
+    {
+      id: "P36",
+      title: "¿Actualmente el restaurante emite comprobantes de pago?",
+      options: yes,
+      when: more("P32"),
+    },
+    {
+      id: "P36.1",
+      title: "¿Qué comprobantes de pago emite actualmente?",
+      kind: "multiple",
+      options: business([
+        "Boleta",
+        "Factura",
+        "Nota de crédito",
+        "Ticket",
+      ]),
+      when: more("P36"),
+    },
+    {
+      id: "P38",
+      title: "¿El restaurante cuenta con Licencia Municipal de Funcionamiento vigente?",
+      options: business(["Sí", "No", "En trámite"]),
+      when: (a) => a.P10 === "Sí",
+    },
+    {
+      id: "P39",
+      title: "¿Cuenta con Certificado ITSE (Defensa Civil) vigente para cocina y salón?",
+      options: business(["Sí", "No", "En trámite"]),
+      when: (a) => a.P10 === "Sí",
+    },
   ],
 ];
 
-const sector: Record<string, Question[]> = {
-  "Restaurante / alimentos":[
-    ["R01","¿Prepararás alimentos en el establecimiento?"],["R02","¿Manipularás alimentos directamente?"],["R03","¿Se consumirán alimentos en el local?"],["R04","¿Venderás comida para llevar?"],["R05","¿Harás entregas a domicilio?"],["R06","¿Fabricarás alimentos envasados?"],["R07","¿Distribuirás a otras tiendas?"],["R08","¿Tendrás cocina en el local?"],["R09","¿Usarás gas para cocinar?"],["R10","¿Usarás hornos, parrillas o freidoras?"],["R11","¿Necesitarás extracción de humo o ventilación especial?"],["R12","¿Venderás bebidas alcohólicas?"],
-  ].map(([id,title])=>({id,title,options:yes})),
-  "Tienda / comercio":[
-    {id:"C01",title:"¿Qué productos venderás?",options:business(["Alimentos","Ropa","Tecnología","Cosméticos","Ferretería","Hogar","Medicamentos","Otro"])},
-    ...[["C02","¿Almacenarás productos?"],["C03","¿Venderás productos importados?"],["C04","¿Venderás productos con posible autorización sanitaria?"],["C05","¿Guardarás sustancias peligrosas?"],["C06","¿Harás reparto de productos?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Servicios:[
-    {id:"S01",title:"¿Qué servicio ofrecerás?",options:business(["Tecnología","Consultoría","Contabilidad","Marketing","Reparación","Belleza","Limpieza","Servicio profesional","Otro"])},
-    ...[["S02","¿Se requiere título o colegiatura?"],["S03","¿Atenderás en un establecimiento?"],["S04","¿Trabajarás en el domicilio del cliente?"],["S05","¿Usarás equipos especiales?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Hospedaje:[
-    {id:"H01",title:"¿Qué alojamiento ofrecerás?",options:business(["Hotel","Hostal","Hospedaje","Casa de huéspedes","Otro"])},
-    {id:"H02",title:"¿Cuántas habitaciones tendrá?",kind:"number"},
-    ...[["H03","¿Ofrecerás alimentos?"],["H04","¿Tendrás estacionamiento?"],["H05","¿Tendrás piscina, sauna u otros servicios?"],["H06","¿Recibirás turistas extranjeros?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Manufactura:[
-    {id:"M01",title:"¿Qué fabricarás?",kind:"text"},
-    ...[["M02","¿Usarás maquinaria industrial?"],["M03","¿Usarás sustancias químicas?"],["M04","¿Generarás residuos del proceso?"],["M05","¿Tendrás almacén de materia prima?"],["M06","¿Fabricarás productos para consumo humano?"],["M07","¿Fabricarás alimentos?"],["M08","¿Fabricarás cosméticos?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Agropecuario:[
-    {id:"A01",title:"¿Cuál será tu actividad agropecuaria?",options:business(["Agricultura","Ganadería","Crianza","Producción de alimentos","Comercialización","Otro"])},
-    ...[["A02","¿Criarás animales?"],["A03","¿Usarás productos químicos agrícolas?"],["A04","¿Procesarás productos antes de venderlos?"],["A05","¿Venderás directamente al consumidor?"],["A06","¿Planeas exportar?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Salud:[
-    {id:"SA01",title:"¿Qué servicio de salud ofrecerás?",options:business(["Consultorio","Clínica","Odontología","Psicología","Laboratorio","Farmacia","Otro"])},
-    ...[["SA02","¿Atenderán profesionales titulados?"],["SA03","¿Se requiere colegiatura?"],["SA04","¿Almacenarás medicamentos?"],["SA05","¿Harás procedimientos médicos?"],["SA06","¿Generarás residuos biológicos?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Educación:[
-    {id:"E01",title:"¿Qué tipo de educación brindarás?",options:business(["Academia","Instituto","Cursos","Clases particulares","Educación inicial","Colegio","Otro"])},
-    {id:"E02",title:"¿Cómo serán las clases?",options:business(["Presenciales","Virtuales","Híbridas"])},
-    ...[["E03","¿Trabajarás con menores de edad?"],["E04","¿Emitirás certificados?"],["E05","¿Tendrás local para clases?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Transporte:[
-    {id:"T01",title:"¿Qué transportarás?",options:business(["Personas","Mercancías","Entrega","Turismo","Carga","Otro"])},
-    {id:"T02",title:"¿Usarás vehículos propios?",options:yes},
-    {id:"T03",title:"¿Cuántos vehículos usarás?",kind:"number"},
-    {id:"T04",title:"¿Transportarás materiales peligrosos?",options:yes},
-    {id:"T05",title:"¿Dónde prestarás el servicio?",options:business(["Local","Regional","Nacional","Más de uno"])},
-  ],
-  Construcción:[
-    {id:"CO01",title:"¿Qué trabajo harás?",options:business(["Construcción","Remodelación","Instalaciones","Electricidad","Gasfitería","Obras civiles","Otro"])},
-    ...[["CO02","¿Tendrás trabajadores en obra?"],["CO03","¿Harás trabajos en altura?"],["CO04","¿Usarás maquinaria pesada?"]].map(([id,title])=>({id,title,options:yes})),
-    {id:"CO05",title:"¿Quiénes serán tus clientes?",options:business(["Personas","Empresas","Estado","Mixto"])},
-  ],
-  Tecnología:[
-    {id:"TE01",title:"¿Qué solución tecnológica ofrecerás?",options:business(["Desarrollo de software a medida","Páginas web o comercio electrónico","Soporte técnico y redes","Consultoría TI","Venta de licencias o SaaS","Otro"])},
-    ...[["TE02","¿Almacenarás datos personales de usuarios o clientes?"],["TE03","¿Venderás equipos físicos además de software?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Turismo:[
-    {id:"TU01",title:"¿Cómo operarás en turismo?",options:business(["Agencia de viajes (reservo servicios de terceros)","Operador turístico (organizo mis propios tours)","Ambos (agencia y operador)","Guía oficial de turismo","Otro"])},
-    ...[["TU02","¿Atenderás turistas en una oficina física?"],["TU03","¿Incluirás transporte turístico propio?"],["TU04","¿Ofrecerás actividades de turismo de aventura?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Belleza:[
-    {id:"BE01",title:"¿Qué servicios de cuidado personal brindarás?",options:business(["Peluquería y barbería","Manicure y pedicure","Cosmetología y estética facial","Spa y masajes","Venta de productos cosméticos","Otro"])},
-    ...[["BE02","¿Aplicarás productos cosméticos o químicos en clientes?"],["BE03","¿Esterilizarás herramientas o instrumental de trabajo?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Importación:[
-    {id:"IM01",title:"¿Qué tipo de bienes importarás?",options:business(["Ropa, calzado y accesorios","Equipos electrónicos y tecnología","Alimentos o bebidas","Cosméticos, medicamentos o insumos médicos","Repuestos y maquinaria","Otro"])},
-    ...[["IM02","¿Tus importaciones superarán los US$ 2,000 por envío (Importa Fácil)?"],["IM03","¿Importarás mercancía restringida que requiera permiso de DIGESA, DIGEMID o MTC?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Exportación:[
-    {id:"EX01",title:"¿Qué productos o servicios exportarás?",options:business(["Productos agrícolas o agroindustriales","Artesanías y textiles","Alimentos procesados","Servicios digitales o software","Otro"])},
-    ...[["EX02","¿Realizarás envíos comerciales frecuentes al exterior?"],["EX03","¿Necesitarás certificado de origen o permisos sanitarios (SENASA/DIGESA)?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-  Entretenimiento:[
-    {id:"EN01",title:"¿Qué actividad recreativa o cultural desarrollarás?",options:business(["Organización de eventos sociales o corporativos","Espectáculos públicos en vivo","Producción audiovisual o musical","Juegos recreativos o salón de eventos","Otro"])},
-    ...[["EN02","¿Realizarás eventos con gran aforo de público?"],["EN03","¿Venderás alimentos o bebidas durante los eventos?"]].map(([id,title])=>({id,title,options:yes})),
-  ],
-};
+const restaurantQuestions: Question[] = [
+  ["R01", "¿Se preparan y cocinan alimentos dentro del establecimiento?"],
+  ["R02", "¿Se atienden comensales en salón / mesas?"],
+  ["R04", "¿Se vende comida para llevar o por reparto a domicilio (delivery)?"],
+  ["R09", "¿Se utiliza GLP (balón o tanque de gas), hornos o freidoras industriales?"],
+  ["R12", "¿Se expenden bebidas acompañando las comidas?"],
+].map(([id, title]) => ({ id, title, options: yes }));
 
 export function visibleQuestions(section: number, answers: Answers): Question[] {
   const base = questions[section] || [];
-  const extra = section === 3 ? sector[String(answers.P01)] || [] : [];
-  const food = section === 3 && answers.P01 === "Hospedaje" && answers.H03 === "Sí" ? sector["Restaurante / alimentos"] : [];
-  const groupedBase = section === 0 ? base.filter(q=>q.id !== "P05" && q.id !== "P06") : base;
-  return [...groupedBase,...extra,...food].filter(q=>!q.when || q.when(answers));
+  const extra = section === 3 ? restaurantQuestions : [];
+  const groupedBase =
+    section === 0 ? base.filter((q) => q.id !== "P05" && q.id !== "P06") : base;
+  return [...groupedBase, ...extra].filter((q) => !q.when || q.when(answers));
 }

@@ -1,121 +1,347 @@
 import type { BusinessContext } from "./types";
 
 export type PracticalGuide = {
+  area: "COMPRENSION" | "EVALUACION" | "CUMPLIMIENTO";
+  areaLabel: string;
+  objectiveCode: "OE1" | "OE2" | "OE3";
+  title: string;
   where: string;
   askFor: string;
   prepare: string[];
   steps: string[];
   cost: string;
+  restaurantExample: string;
   note?: string;
   sourceId: string;
+  officialUrl: string;
 };
 
+/**
+ * Contenido del Centro de Orientación organizado en las 3 áreas de la investigación:
+ * - Área 1 (OE1): Comprensión tributaria (características de regímenes y obligaciones del restaurante).
+ * - Área 2 (OE2): Evaluación de alternativas (requisitos, límites, restricciones y comparación de regímenes).
+ * - Área 3 (OE3): Organización del cumplimiento (declaraciones, comprobantes, libros, cronogramas y acciones).
+ */
 export const practicalGuides: Record<string, PracticalGuide> = {
   ruc: {
-    where: "SUNAT Virtual o App Personas si eres persona natural con DNI. Si elegiste persona jurídica, primero constituye e inscribe la empresa en SUNARP y luego activa el RUC en SUNAT Operaciones en Línea.",
-    askFor: "Inscripción al RUC para iniciar un negocio y generación de Clave SOL.",
-    prepare: ["DNI vigente", "Celular y correo que puedas confirmar", "Domicilio fiscal", "Fecha prevista de inicio", "Descripción sencilla de la actividad y régimen que vas a elegir"],
-    steps: ["Verifica si ya tienes RUC.", "Identifícate en la App Personas o SUNAT Virtual; para persona natural puede solicitarse validación biométrica.", "Registra domicilio, actividad económica, fecha de inicio y régimen tributario.", "Genera o activa tu Clave SOL y guarda la constancia del RUC."],
-    cost: "La guía de inscripción digital de SUNAT no señala un pago por inscribirte. No confundas este trámite con los gastos de constituir una persona jurídica.",
-    note: "Elige con cuidado la actividad económica: SUNAT la usa para identificar las obligaciones que podrían corresponderte.",
+    area: "COMPRENSION",
+    areaLabel: "Área 1. Comprensión tributaria",
+    objectiveCode: "OE1",
+    title: "Ficha RUC, actividad CIIU 5610 y datos tributarios del restaurante",
+    where:
+      "Portal de SUNAT (Consulta RUC pública y SUNAT Operaciones en Línea) para verificar los datos inscritos del restaurante.",
+    askFor:
+      "Verificación de estado ACTIVO, condición HABIDO, actividad económica CIIU 5610 (Actividades de restaurantes y de servicio móvil de comidas) y tributos afectos.",
+    prepare: [
+      "Número de RUC de 11 dígitos del restaurante (RUC 10 o RUC 20)",
+      "Nombre comercial y dirección del establecimiento en Cajamarca",
+      "Tipo de comprobantes autorizados y régimen tributario registrado",
+    ],
+    steps: [
+      "Consulta la ficha RUC pública para contrastar el régimen tributario actual y el estado del contribuyente.",
+      "Verifica que la actividad económica principal corresponda al rubro gastronómico (CIIU 5610 o 5621).",
+      "Distingue siempre entre los datos verificados en SUNAT y las proyecciones operativas declaradas por la administración del restaurante.",
+    ],
+    cost: "La consulta y actualización de datos de actividad o domicilio fiscal en SUNAT es gratuita.",
+    restaurantExample:
+      "Un restaurante de menú en el centro de Cajamarca con RUC 10 verifica en Consulta RUC que su código CIIU sea 5610 y que su domicilio fiscal coincida con el local donde atiende al público.",
+    note: "Crea nunca solicita tu Clave SOL. Toda verificación de esta plataforma respeta la confidencialidad de tus credenciales.",
     sourceId: "sunat-ruc",
+    officialUrl: "https://orientacion.sunat.gob.pe/inscripcion-al-ruc",
   },
   sunarp: {
-    where: "Sistema de Intermediación Digital (SID-SUNARP) y una notaría que tramite la constitución elegida.",
-    askFor: "Constitución e inscripción de una persona jurídica. La reserva de nombre es recomendable, pero no obligatoria.",
-    prepare: ["DNI o documento de identidad de cada socio", "Tres alternativas de nombre", "Domicilio y actividad/objeto de la empresa", "Aportes de cada socio y monto de capital", "Quién administrará y representará la empresa"],
-    steps: ["Elige con los socios el tipo de persona jurídica y acuerden aportes, reglas y representante.", "Consulta nombres y, si lo deseas, solicita la reserva desde SID-SUNARP.", "En SID, selecciona la notaría y completa los datos de socios, capital, domicilio y objeto.", "Coordina con la notaría el acto constitutivo, firmas y presentación al Registro de Personas Jurídicas.", "Con la inscripción, sigue las indicaciones de SUNAT para activar el RUC y Clave SOL."],
-    cost: "La reserva en SID muestra el importe antes del pago; la ficha de gob.pe consultada publica S/ 25.60. La constitución añade derechos registrales que dependen del trámite y capital, más honorarios notariales. Confirma el total en SID y con la notaría antes de pagar.",
-    note: "Si operas como persona natural con negocio, esta constitución societaria no es un paso previo obligatorio. La persona jurídica separa a la empresa de sus socios en los términos de la forma elegida; compara responsabilidades antes de decidir.",
-    sourceId: "sunarp",
+    area: "COMPRENSION",
+    areaLabel: "Área 1. Comprensión tributaria",
+    objectiveCode: "OE1",
+    title: "Diferencia entre Persona Natural con Negocio (RUC 10) y Persona Jurídica (RUC 20)",
+    where:
+      "SUNAT (para RUC 10 y RUC 20) y Registros Públicos - SUNARP (cuando el restaurante opera como E.I.R.L., S.R.L. o S.A.C.).",
+    askFor:
+      "Comprender cómo el tipo de personería jurídica define los regímenes a los que puede acogerse el restaurante.",
+    prepare: [
+      "Tipo de RUC del restaurante (10 para Persona Natural, 20 para Persona Jurídica)",
+      "Cantidad de propietarios o socios del establecimiento",
+      "Nivel de responsabilidad patrimonial y proyección de crecimiento",
+    ],
+    steps: [
+      "Identifica si el restaurante opera como Persona Natural con Negocio (único titular) o como Persona Jurídica.",
+      "Ten presente que una Persona Jurídica (RUC 20) NO puede acogerse al Nuevo RUS; solo puede tributar en RER, RMT o Régimen General.",
+      "Evalúa si planeas abrir sucursales o incorporar socios en el corto plazo.",
+    ],
+    cost: "Operar como Persona Natural no requiere gastos notariales ni registrales. Constituir una Persona Jurídica implica costos notariales y registrales en SUNARP.",
+    restaurantExample:
+      "Dos hermanos que abren una pollería en Los Baños del Inca constituyen una S.R.L. (RUC 20). Por ser Persona Jurídica, el motor de reglas descarta automáticamente el Nuevo RUS y evalúa RER, RMT y RG.",
+    sourceId: "sunat-regimes",
+    officialUrl: "https://emprender.sunat.gob.pe/emprendiendo/decido-emprender/tipo-negocio",
   },
   regime: {
-    where: "Elige el régimen al inscribirte o activar el RUC en SUNAT. Después, las declaraciones y pagos se gestionan con Clave SOL según el régimen y el cronograma aplicable.",
-    askFor: "Afectación al régimen tributario que corresponda a la actividad y forma de operar.",
-    prepare: ["Si venderás a personas, empresas o al Estado", "Estimación de ingresos y compras del año", "Activos usados en el negocio", "Trabajadores por turno", "Si necesitas emitir facturas", "Actividad exacta para revisar exclusiones"],
-    steps: ["Revisa la preselección que muestra esta plataforma y sus condiciones.", "Confirma con SUNAT si tu actividad está permitida en el régimen y cómo debes acogerte.", "Selecciona el régimen al inscribirte o actualizar tu RUC dentro de las fechas que correspondan.", "Configura emisión de comprobantes y calendario de declaraciones; guarda tus comprobantes de ventas y compras."],
-    cost: "No se paga una tasa por comparar opciones. Sí pueden existir impuestos periódicos: Nuevo RUS cobra cuota de S/ 20 o S/ 50 si cumples sus condiciones; RER calcula 1.5% de ingresos netos mensuales más IGV; RMT y Régimen General tienen anticipos mensuales y regularización anual. El monto final depende de ventas gravadas, compras con derecho a crédito, utilidad y tu situación.",
-    note: "No elijas solo por la cuota. Si clientes empresariales te pedirán factura, el Nuevo RUS no te sirve; si tu actividad está excluida, la proyección de ventas no basta para entrar al RER o RMT.",
+    area: "EVALUACION",
+    areaLabel: "Área 2. Evaluación de alternativas",
+    objectiveCode: "OE2",
+    title: "Comparación de requisitos, límites y restricciones entre NRUS, RER, RMT y RG",
+    where:
+      "Catálogo normativo de Regímenes Tributarios de SUNAT (Nuevo RUS, Régimen Especial, Régimen MYPE Tributario y Régimen General).",
+    askFor:
+      "Evaluar qué regímenes son legalmente compatibles con las ventas, compras, comprobantes, locales, activos y personal del restaurante.",
+    prepare: [
+      "Ventas brutas mensuales y anuales del restaurante",
+      "Compras mensuales de insumos (con factura y con boleta)",
+      "Necesidad de emitir facturas a clientes corporativos o instituciones",
+      "Número de locales abiertos y cantidad máxima de trabajadores por turno",
+      "Valor de equipos de cocina, refrigeración y mobiliario (activos fijos)",
+    ],
+    steps: [
+      "Revisa primero la compatibilidad legal: un régimen queda descartado si incumples aunque sea un solo requisito obligatorio.",
+      "Verifica si emites facturas o tienes más de 1 local: eso excluye al Nuevo RUS aunque tus ventas sean menores a S/ 8,000 al mes.",
+      "Verifica si superas los 10 trabajadores por turno, S/ 126,000 en activos o S/ 525,000 anuales en ventas/compras: eso excluye al RER.",
+      "Compara en el simulador el impacto del crédito fiscal de IGV y la deducción de gastos anuales en el RMT y RG.",
+    ],
+    cost: "La evaluación no tiene costo. El cambio de régimen ante SUNAT se realiza con la declaración y pago mensual según las reglas del Código Tributario y de cada régimen.",
+    restaurantExample:
+      "Un restaurante turístico vende S/ 18,000/mes y tiene 12 trabajadores en el turno del almuerzo. Aunque sus ventas anuales (S/ 216,000) no superan los S/ 525,000 del RER, es INCOMPATIBLE con el RER por superar el límite de 10 trabajadores por turno, siendo compatible con el RMT y RG.",
+    note: "El régimen con menor pago estimado mensual no es necesariamente el mejor: primero debe ser legalmente compatible y responder a la realidad operativa del restaurante.",
     sourceId: "sunat-regimes",
+    officialUrl: "https://emprender.sunat.gob.pe/tributando/regimenes-tributarios/conocelos",
   },
-  license: {
-    where: "Área de Licencias de Funcionamiento o Comercialización de la municipalidad competente para la dirección del local. Pregunta también por compatibilidad del giro con la zonificación.",
-    askFor: "Solicitud de licencia de funcionamiento para tu actividad exacta en esa dirección. Pide el TUPA vigente, el formato de nivel de riesgo y la lista de anexos.",
-    prepare: ["Dirección exacta y área del establecimiento", "Giro o actividad que desarrollarás", "RUC y documento de identidad", "Si es empresa: datos del representante y vigencia de poder cuando corresponda", "Declaraciones y reporte de riesgo que entrega la municipalidad"],
-    steps: ["Antes de alquilar o invertir, consulta si el giro puede funcionar en esa dirección.", "Solicita el formulario vigente y pregunta cómo la municipalidad clasificará el nivel de riesgo.", "Completa la solicitud/declaración jurada y presenta el reporte de riesgo con los anexos aplicables.", "Paga el derecho de trámite indicado en el TUPA y conserva el recibo y cargo.", "Sigue la indicación municipal para la ITSE: riesgo bajo/medio puede tramitarse después de la licencia, dentro del plazo oficial; alto/muy alto requiere ITSE previa."],
-    cost: "La tasa y anexos dependen del TUPA de tu municipalidad, dirección y nivel de riesgo. No hay un precio único para todo el Perú. Pide el código del trámite y monto vigente antes de pagar; exige recibo oficial.",
-    note: "No pagues a terceros por una lista genérica: primero confirma que la municipalidad y el procedimiento sean los que corresponden a tu distrito y local.",
-    sourceId: "licencia-paso",
+  comprobantes: {
+    area: "EVALUACION",
+    areaLabel: "Área 2. Evaluación de alternativas",
+    objectiveCode: "OE2",
+    title: "Comprobantes de pago en restaurantes y efecto del crédito fiscal de IGV",
+    where:
+      "Reglamento de Comprobantes de Pago de SUNAT y portal de Facturación Electrónica.",
+    askFor:
+      "Conocer qué comprobantes puede emitir cada régimen y cómo las facturas de compras de insumos reducen el IGV por pagar.",
+    prepare: [
+      "Proporción de ventas a consumidores finales (Boleta) y a empresas (Factura)",
+      "Relación de proveedores de carnes, abarrotes, bebidas y gas que emiten factura electrónica",
+      "Monto de compras realizadas en mercados sin factura",
+    ],
+    steps: [
+      "En el Nuevo RUS solo puedes emitir Boletas de Venta y tickets sin derecho a crédito fiscal.",
+      "En RER, RMT y RG estás habilitado a emitir Facturas electrónicas y Boletas de Venta.",
+      "Exige Factura electrónica en las compras de insumos de tu restaurante para respaldar el crédito fiscal de IGV y deducir costos.",
+    ],
+    cost: "La emisión desde el Portal SOL o App Emprender de SUNAT es gratuita.",
+    restaurantExample:
+      "Una picantería en RER vende S/ 15,000 al mes. Si compra S/ 8,000 de insumos con factura electrónica, utiliza el IGV de esas facturas como crédito fiscal y reduce legalmente el IGV neto a pagar en el mes.",
+    sourceId: "sunat-comprobantes",
+    officialUrl: "https://emprender.sunat.gob.pe/comprobantes-de-pago/comprobantes-de-pago",
   },
-  itse: {
-    where: "Municipalidad competente o su área de Gestión del Riesgo de Desastres/ITSE, según indique el procedimiento local.",
-    askFor: "Evaluación ITSE aplicable al nivel de riesgo de tu establecimiento y su costo según el TUPA vigente.",
-    prepare: ["Dirección y distribución del local", "Actividad y aforo estimado", "Información de instalaciones eléctricas, gas y equipos, si existen", "Planos, certificados u otros anexos solo si la municipalidad los exige para tu nivel de riesgo"],
-    steps: ["Pide a la municipalidad confirmar el nivel de riesgo y si la inspección es previa o posterior a la licencia.", "Solicita la lista de documentos y condiciones técnicas correspondiente a ese nivel.", "Presenta la solicitud, paga la tasa local aplicable y coordina la inspección si corresponde.", "Levanta observaciones y conserva el certificado o acta emitida."],
-    cost: "El importe depende del TUPA local y del nivel de riesgo. Pregunta si el derecho ITSE está incluido en el trámite de licencia o se paga por separado.",
-    sourceId: "licencia-paso",
+  cronograma: {
+    area: "CUMPLIMIENTO",
+    areaLabel: "Área 3. Organización del cumplimiento",
+    objectiveCode: "OE3",
+    title: "Organización mensual de declaraciones, libros contables y cronograma SUNAT",
+    where:
+      "Cronograma Oficial de Obligaciones Mensuales de SUNAT y módulo Declara Fácil 621 / Pago Fácil 1611.",
+    askFor:
+      "Organizar las tareas mensuales del restaurante antes de la fecha de vencimiento según el último dígito del RUC.",
+    prepare: [
+      "Último dígito del RUC de 11 dígitos del restaurante",
+      "Resumen cerrado de ventas y compras del periodo mensual anterior",
+      "Registros de Ventas y Compras electrónicos (en RER, RMT y RG)",
+    ],
+    steps: [
+      "Identifica el último dígito de tu RUC para conocer tu fecha límite oficial de declaración del mes.",
+      "Durante la primera semana de cada mes, consolida todas las facturas de compra de insumos y recibos de servicios del mes anterior.",
+      "Verifica tus Registros de Ventas y Compras antes de presentar el Declara Fácil 621 (o paga tu cuota fija si perteneces al NRUS).",
+      "Guarda la constancia de presentación (CDR / NPS) en el archivo tributario del restaurante.",
+    ],
+    cost: "Presentar la declaración dentro del plazo evita multas e intereses moratorios.",
+    restaurantExample:
+      "Un restaurante cuyo RUC termina en dígito «4» revisa en el módulo «Mis obligaciones» que su declaración del periodo Marzo 2026 vence el 20 de abril de 2026 y organiza sus facturas de compras 5 días antes.",
+    sourceId: "sunat-cronograma",
+    officialUrl: "https://orientacion.sunat.gob.pe/cronograma-de-obligaciones-mensuales",
   },
   "t-registro": {
-    where: "SUNAT Operaciones en Línea (SOL), opción T-Registro y PLAME.",
-    askFor: "Alta de cada trabajador en T-Registro y presentación de la Planilla Mensual de Pagos (PLAME), según la relación laboral.",
-    prepare: ["DNI y datos de cada trabajador", "Fecha de ingreso", "Tipo de contrato y ocupación", "Remuneración, jornada y datos previsionales y de salud", "Clave SOL del empleador"],
-    steps: ["Confirma el vínculo y condiciones laborales con cada persona.", "Registra los datos del empleador y trabajador en T-Registro dentro del plazo aplicable.", "Calcula remuneraciones, aportes y retenciones que correspondan.", "Presenta PLAME y paga los conceptos dentro del cronograma vigente; guarda constancias."],
-    cost: "La presentación en SUNAT no tiene una tasa de trámite; los costos reales pueden incluir remuneración, EsSalud, pensiones y beneficios laborales. El monto depende del vínculo y régimen laboral.",
+    area: "CUMPLIMIENTO",
+    areaLabel: "Área 3. Organización del cumplimiento",
+    objectiveCode: "OE3",
+    title: "Gestión de planilla del personal de cocina y salón (T-Registro y PLAME)",
+    where:
+      "SUNAT Operaciones en Línea — T-Registro y Planilla Mensual de Pagos (PLAME).",
+    askFor:
+      "Registro formal de cocineros, ayudantes de cocina, mozos y cajeros, y declaración mensual de aportes y retenciones.",
+    prepare: [
+      "Documento de identidad y contratos de trabajo del personal del restaurante",
+      "Control de asistencia y remuneraciones del mes",
+      "Afiliación al régimen laboral MYPE cuando corresponda",
+    ],
+    steps: [
+      "Registra el alta de cada trabajador en el T-Registro el mismo día que ingresa a laborar en el restaurante.",
+      "Elabora mensualmente la planilla y entrega las boletas de pago de remuneraciones.",
+      "Declara la planilla electrónica (PLAME) de acuerdo con el cronograma mensual de SUNAT según el último dígito del RUC.",
+    ],
+    cost: "La declaración en PLAME no tiene costo de trámite; genera el pago de aportes (EsSalud) y retenciones previsionales (ONP/AFP) correspondientes.",
+    restaurantExample:
+      "Un restaurante con 5 trabajadores en cocina y salón declara mensualmente su PDT PLAME en la misma fecha de vencimiento que su declaración de IGV-Renta.",
     sourceId: "sunat-planilla",
+    officialUrl: "https://orientacion.sunat.gob.pe/planilla-electronica",
   },
-  book: {
-    where: "Indecopi para orientación; implementa el libro en el establecimiento o canal de atención que corresponda a tu negocio.",
-    askFor: "Cómo poner a disposición el Libro de Reclamaciones y el aviso visible para consumidores.",
-    prepare: ["Razón social o nombre del proveedor", "RUC y dirección del establecimiento", "Responsable de recibir y responder reclamos", "Canales de atención, incluida la web si vendes en línea"],
-    steps: ["Confirma si atiendes consumidores finales y en qué canales.", "Implementa un Libro de Reclamaciones físico o virtual y coloca el aviso donde el consumidor pueda verlo.", "Define quién revisará el libro y cómo se responderá conforme al plazo legal vigente.", "Conserva los registros de reclamos y respuestas."],
-    cost: "No se paga a Indecopi una tasa por registrar el libro. Puede haber costo de impresión o de una solución digital elegida por el negocio; no es una tarifa oficial de Indecopi.",
-    sourceId: "indecopi",
-  },
-  sector: {
-    where: "Primero identifica el código y alcance de tu actividad; después consulta el ministerio, dirección regional u organismo sectorial competente.",
-    askFor: "Si tu actividad requiere autorización, registro, colegiatura, certificado u otra habilitación previa para operar.",
-    prepare: ["Descripción concreta del servicio o producto", "Actividad económica/CIIU confirmada con SUNAT", "Lugar y forma en que operarás", "Respuestas del bloque sectorial de este cuestionario"],
-    steps: ["No asumas que necesitas un permiso solo por el nombre amplio del rubro.", "Describe a la entidad qué harás, dónde y para quién.", "Pide el nombre exacto del trámite, norma aplicable, requisitos y tasa vigente.", "Guarda el enlace oficial y la respuesta de la entidad para actualizar tu ruta."],
-    cost: "No se puede estimar todavía: el permiso específico y su tasa dependen de la actividad detallada y la autoridad competente.",
-    note: "Esta tarjeta es una alerta de revisión; no confirma que tengas que tramitar un permiso sectorial.",
-    sourceId: "sector-review",
+  license: {
+    area: "CUMPLIMIENTO",
+    areaLabel: "Área 3. Organización del cumplimiento",
+    objectiveCode: "OE3",
+    title: "Formalización municipal e inspección ITSE para locales de restaurantes",
+    where:
+      "Municipalidad Provincial de Cajamarca o municipalidad distrital correspondiente a la ubicación del restaurante.",
+    askFor:
+      "Vigencia de Licencia de Funcionamiento para giro de restaurante y Certificado ITSE de seguridad en edificaciones.",
+    prepare: [
+      "Ficha RUC activa del restaurante",
+      "Certificado vigente de extintores, señalización y seguridad de instalaciones de gas (GLP) en cocina",
+      "Buenas prácticas de manipulación de alimentos e higiene sanitaria",
+    ],
+    steps: [
+      "Mantén visible la Licencia Municipal de Funcionamiento y el Certificado ITSE en el salón del restaurante.",
+      "Programa la renovación oportuna del certificado ITSE antes de su vencimiento.",
+    ],
+    cost: "Según tasa establecida en el TUPA de la municipalidad correspondiente.",
+    restaurantExample:
+      "Una cafetería en Cajamarca mantiene al día su licencia municipal junto con su archivo de declaraciones mensuales ante SUNAT.",
+    sourceId: "licencia-paso",
+    officialUrl: "https://www.gob.pe/institucion/produce/campa%C3%B1as/55956-licencia-de-funcionamiento-paso-a-paso",
   },
 };
 
-export type TaxPath = { code?: "NRUS" | "RER" | "RMT" | "RG"; title: string; reason: string; checks: string[]; status: "PRESELECCION" | "FALTAN_DATOS" };
+export type TaxPath = {
+  code?: "NRUS" | "RER" | "RMT" | "RG";
+  title: string;
+  reason: string;
+  checks: string[];
+  status: "PRESELECCION" | "FALTAN_DATOS";
+};
 
 export function getTaxPath(context: BusinessContext): TaxPath {
-  const q = context.questionnaire;
-  if (!q) return { title: "Completa el cuestionario para comparar", reason: "Necesitamos conocer tu actividad, ventas, clientes, comprobantes y forma de operar.", checks: ["Responde las preguntas tributarias"], status: "FALTAN_DATOS" };
-  const salesKnown = String(q.P20 || "").startsWith("monto:");
-  const purchasesKnown = String(q.TAX_PURCHASES || "").trim() !== "";
-  const assetsKnown = String(q.TAX_ASSETS || "").trim() !== "";
-  const annualSales = salesKnown ? Number(String(q.P20).slice(6)) * 12 : 0;
-  const purchases = purchasesKnown ? Number(q.TAX_PURCHASES) * 12 : 0;
-  const assets = assetsKnown ? Number(q.TAX_ASSETS) : 0;
-  const employeesKnown = q.P28 === "No" || (q.P28 === "Sí" && Boolean(String(q.P29 || "").trim()) && Boolean(String(q["P29.1"] || "").trim()));
-  const employeesPerShift = Number(q["P29.1"] || 0);
-  const legalKnown = context.legalPerson !== "aun-no-se";
-  const customersKnown = context.customerType !== "aun-no-se";
-  const canCheckNrus = legalKnown && customersKnown && salesKnown && purchasesKnown && assetsKnown && employeesKnown && context.activityId && q.P23;
-  const nrusFits = canCheckNrus && context.sectorId !== "turismo" && context.legalPerson === "natural" && context.customerType === "personas" && context.needsInvoices === false && annualSales <= 96000 && purchases <= 96000 && assets <= 70000 && !["carga","agencia","importador","exportador"].includes(context.activityId);
-  if (nrusFits) return { code:"NRUS", title:"Primera opción a revisar: Nuevo RUS", reason:"Tus respuestas describen una persona natural que vende a consumidores finales, no requiere factura y está dentro de los límites generales que SUNAT publica. Este régimen puede ser el más sencillo si también cumples sus exclusiones.", checks:["Confirma que el giro no esté excluido y que no tengas más de una unidad de explotación.","SUNAT establece cuota mensual de S/ 20 (categoría 1) o S/ 50 (categoría 2), según ingresos y compras.","Solo permite boletas, tickets y guías; no facturas."], status:"PRESELECCION" };
-  const rerKnown = salesKnown && purchasesKnown && assetsKnown && employeesKnown && legalKnown;
-  // Do not exclude an entire sector without checking the exact activity against SUNAT's list.
-  const rerFits = rerKnown && annualSales <= 525000 && purchases <= 525000 && assets <= 126000 && employeesPerShift <= 10;
-  if (rerFits) return { code:"RER", title:"Primera opción a revisar: Régimen Especial (RER)", reason:"Las ventas y compras que declaraste están bajo los límites publicados y tu escenario no activa una exclusión conocida en esta preselección. El RER permite emitir facturas y boletas, pero hay que confirmar el CIIU exacto antes de elegirlo.", checks:["Límite general: S/ 525,000 anuales en ingresos y compras, hasta S/ 126,000 en activos computables y máximo 10 trabajadores por turno.","Pago mensual de renta: 1.5% de ingresos netos; además IGV de operaciones gravadas, con crédito fiscal si procede.","La actividad exacta puede excluirte. Confírmala con SUNAT antes de acogerte."], status:"PRESELECCION" };
-  const annualLimitRmt = 1700 * 5500;
-  if (salesKnown && legalKnown && customersKnown && q.P23 && annualSales <= annualLimitRmt && (annualSales > 525000 || (rerKnown && !rerFits))) return { code:"RMT", title:"RMT: alternativa para revisar con SUNAT", reason:"La estimación supera el límite general de ingresos del RER o los datos completos muestran que no se cumple alguna de sus condiciones revisadas. Por eso el RMT merece compararse; no queda elegido automáticamente y aún hay que revisar sus exclusiones.", checks:["El RMT permite emitir facturas y boletas y admite hasta 1,700 UIT de ingresos netos anuales, sujeto a exclusiones.", "Necesitar factura no obliga por sí solo a elegir RMT: el RER también permite emitirla si cumples sus condiciones.", "Lleva tu actividad CIIU, forma legal, clientes y estimación de ingresos y gastos a SUNAT o a un contador para confirmar la opción."], status:"PRESELECCION" };
-  if (salesKnown && annualSales > annualLimitRmt) return { code:"RG", title:"Primera opción a revisar: Régimen General", reason:"La proyección supera el límite general de ingresos del RMT. El Régimen General no tiene tope de ingresos, pero requiere verificar la actividad y tus obligaciones completas.", checks:["El pago a cuenta mensual compara el coeficiente con 1.5% de ingresos netos.","La regularización anual depende de la renta neta imponible.","Confirma el cálculo y el régimen con SUNAT antes de inscribirte."], status:"PRESELECCION" };
-  const missing = [
-    !context.activityId && (context.otherActivity.trim() ? "Confirma el CIIU que corresponde a lo que describiste; la plataforma no debe inventar ese código." : "Describe qué producto venderás o qué servicio ofrecerás para sugerir un CIIU."),
-    !legalKnown && "Define si operarás como persona natural o persona jurídica.",
-    !salesKnown && (String(q.P20 || "")==="Todavía no puedo estimarlo" ? "Aún no tienes una estimación mensual. Usa la calculadora de cantidad de ventas/servicios por cobro promedio; si no puedes hacerlo ahora, deja este dato pendiente." : String(q.P20 || "").trim() ? "Elegiste un rango de ingresos. Para afinar la recomendación, convierte tu rango en un monto aproximado con la calculadora." : "Estima cuánto cobrarías en un mes con la calculadora; si aún no puedes, elige que todavía no puedes estimarlo."),
-    !customersKnown && "Indica si atenderás personas, empresas o ambos.",
-    (!q.P23 || String(q.P23).startsWith("No lo sé")) && "Aclara si tus clientes necesitarán factura.",
-    !purchasesKnown && "Calcula cuánto gastarías en productos, ingredientes o materiales al mes.",
-    !assetsKnown && "Estima el valor de equipos o maquinaria que usará el negocio (si no tienes, escribe 0).",
-    !(q.P28 === "No" || (q.P28 === "Sí" && Boolean(String(q.P29 || "").trim()) && Boolean(String(q["P29.1"] || "").trim()))) && "Indica si tendrás trabajadores; si respondes que sí, cuántos serán y cuántos coincidirán por turno.",
-  ].filter(Boolean) as string[];
-  return { title:"Completa estos datos y comparamos tus opciones", reason:"No necesitas haber empezado a vender ni llevar documentos. Con una descripción y estimaciones honestas podemos revisar qué regímenes podrían encajar y explicarte qué confirmar con SUNAT.", checks:missing.length?missing:["Pregunta a SUNAT si tu CIIU tiene alguna exclusión.", "Compara tus cobros estimados con gastos, compras y comprobantes que emitirás.", "La recomendación será orientativa; confirma tu elección con SUNAT antes de inscribirte."], status:"FALTAN_DATOS" };
+  const salesKnown =
+    context.monthlyRevenue !== undefined ||
+    context.annualRevenue !== undefined ||
+    String(context.questionnaire?.P20 || "").startsWith("monto:");
+  const purchasesKnown =
+    context.monthlyPurchases !== undefined ||
+    String(context.questionnaire?.TAX_PURCHASES || "").trim() !== "";
+  const assetsKnown =
+    context.fixedAssetsValue !== undefined ||
+    context.fixedAssets !== undefined ||
+    String(context.questionnaire?.TAX_ASSETS || "").trim() !== "";
+
+  const monthlySales =
+    context.monthlyRevenue ??
+    (context.annualRevenue !== undefined
+      ? context.annualRevenue / 12
+      : salesKnown
+        ? Number(String(context.questionnaire?.P20).slice(6))
+        : 0);
+  const annualSales = context.annualRevenue ?? monthlySales * 12;
+
+  const monthlyPurchases =
+    context.monthlyPurchases ??
+    (purchasesKnown ? Number(context.questionnaire?.TAX_PURCHASES || 0) : 0);
+  const annualPurchases = context.annualPurchases ?? monthlyPurchases * 12;
+
+  const assets =
+    context.fixedAssetsValue ??
+    context.fixedAssets ??
+    (assetsKnown ? Number(context.questionnaire?.TAX_ASSETS || 0) : 0);
+
+  const employeesPerShift =
+    context.employees ??
+    context.employeeCountPerShift ??
+    Number(context.questionnaire?.["P29.1"] || 0);
+
+  const isJuridica =
+    context.personType === "PERSONA_JURIDICA" ||
+    context.legalPerson === "juridica";
+  const needsFacturas =
+    context.needsFacturas ?? context.needsInvoices ?? false;
+  const establishments =
+    context.establishmentCount ?? (context.hasMultipleLocations ? 2 : 1);
+
+  if (!salesKnown || !purchasesKnown || !assetsKnown) {
+    return {
+      title: "Información insuficiente para confirmar compatibilidad",
+      reason:
+        "Para evaluar los regímenes tributarios de tu restaurante sin asumir datos, completa las ventas mensuales, compras de insumos y valor de activos fijos en «Mi restaurante».",
+      checks: [
+        "Registra las ventas mensuales y anuales estimadas del restaurante.",
+        "Registra las compras mensuales de insumos (con factura y con boleta).",
+        "Indica el valor aproximado de tus equipos de cocina y salón (activos fijos) y trabajadores por turno.",
+      ],
+      status: "FALTAN_DATOS",
+    };
+  }
+
+  const nrusFits =
+    !isJuridica &&
+    !needsFacturas &&
+    establishments <= 1 &&
+    monthlySales <= 8000 &&
+    annualSales <= 96000 &&
+    monthlyPurchases <= 8000 &&
+    annualPurchases <= 96000 &&
+    assets <= 70000;
+
+  if (nrusFits) {
+    return {
+      code: "NRUS",
+      title: "Compatible con Nuevo RUS (y alternativas RER, RMT, RG)",
+      reason:
+        "Tu restaurante opera como Persona Natural en 1 solo local, no necesita emitir facturas y sus ventas y compras no superan los S/ 8,000 mensuales (S/ 96,000 anuales) ni S/ 70,000 en activos.",
+      checks: [
+        "Cuota fija mensual: S/ 20 (Categoría 1, hasta S/ 5,000) o S/ 50 (Categoría 2, hasta S/ 8,000).",
+        "Solo permite emitir Boletas de Venta; no permite emitir Facturas.",
+        "También son legalmente compatibles el RER, RMT y RG si en el futuro requieres emitir facturas.",
+      ],
+      status: "PRESELECCION",
+    };
+  }
+
+  const rerFits =
+    annualSales <= 525000 &&
+    annualPurchases <= 525000 &&
+    assets <= 126000 &&
+    employeesPerShift <= 10;
+
+  if (rerFits) {
+    return {
+      code: "RER",
+      title: "Compatible con Régimen Especial (RER), RMT y Régimen General",
+      reason:
+        "Tu restaurante cumple los topes del RER (hasta S/ 525,000 anuales en ventas y compras, máximo S/ 126,000 en activos fijos y hasta 10 trabajadores por turno) y puede emitir facturas y boletas.",
+      checks: [
+        "RER: Pago mensual de 1.5% sobre ingresos netos más IGV (18%), sin Declaración Anual.",
+        "RMT: Alternativa compatible que permite deducir gastos anuales y pagar 1% de pago a cuenta hasta 300 UIT.",
+        "Compara ambos regímenes en el módulo «Comparador y simulador» según tus compras con factura y gastos operativos.",
+      ],
+      status: "PRESELECCION",
+    };
+  }
+
+  const rmtFits = annualSales <= 1700 * 5350;
+  if (rmtFits) {
+    return {
+      code: "RMT",
+      title: "Compatible con Régimen MYPE Tributario (RMT) y Régimen General",
+      reason:
+        "Por el volumen de ventas, compras, activos fijos o número de trabajadores por turno, el restaurante supera los límites del NRUS y del RER, resultando compatible con el RMT (hasta 1,700 UIT) y el Régimen General.",
+      checks: [
+        "RMT: Pago a cuenta mensual de 1% (hasta 300 UIT) o 1.5% e Impuesto a la Renta Anual progresivo (10% / 29.5%) sobre la utilidad neta.",
+        "Permite emitir facturas, boletas y operar con más de un establecimiento.",
+      ],
+      status: "PRESELECCION",
+    };
+  }
+
+  return {
+    code: "RG",
+    title: "Compatible con Régimen General (RG)",
+    reason:
+      "Los ingresos proyectados superan el tope de 1,700 UIT del RMT, por lo que el régimen legalmente compatible es el Régimen General.",
+    checks: [
+      "Sin límite de ingresos, compras, activos ni trabajadores.",
+      "Requiere contabilidad completa y Declaración Jurada Anual (29.5% sobre utilidad neta).",
+    ],
+    status: "PRESELECCION",
+  };
 }

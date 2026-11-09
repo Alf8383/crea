@@ -1,1153 +1,1183 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
-import { ACTIVE_ACCOUNT_KEY, scopedStorageKey } from "@/lib/account-storage";
-import { districtsFor, locations, provincesFor } from "@/lib/locations";
-import { getTaxPath } from "@/lib/practical-guides";
-import { sectionNames, visibleQuestions, type Answers, type Question } from "@/lib/questionnaire";
-import { RuleEngine } from "@/lib/rule-engine";
-import { activities, rules, sources } from "@/lib/seed-catalog";
+import { scopedStorageKey } from "@/lib/account-storage";
+import { DEMO_PRESETS } from "@/lib/demo-presets";
 import { saveBusinessToFirestore } from "@/lib/firebase/businesses";
-import type { BusinessContext } from "@/lib/types";
+import { RuleEngine } from "@/lib/rule-engine";
+import { seedCatalog } from "@/lib/seed-catalog";
+import type {
+  BusinessContext,
+  DataOrigin,
+  ReceiptType,
+  RestaurantActivityCode,
+  TaxRegimeCode,
+} from "@/lib/types";
 
-const draftKey = "efp-questionnaire-draft";
-
-const sectorMap: Record<string, string> = {
-  "Restaurante / alimentos": "alimentos",
-  "Tienda / comercio": "comercio",
-  Tecnología: "tecnologia",
-  Servicios: "profesional",
-  Construcción: "construccion",
-  Transporte: "transporte",
-  Manufactura: "manufactura",
-  Turismo: "turismo",
-  Hospedaje: "alojamiento",
-  Educación: "educacion",
-  Salud: "salud",
-  Belleza: "belleza",
-  Agropecuario: "agricultura",
-  Importación: "importacion",
-  Exportación: "exportacion",
-  Entretenimiento: "entretenimiento",
-  Otro: "otro",
-};
-
-const amountRanges = [
-  "Menos de S/ 2,500",
-  "S/ 2,500 a S/ 5,000",
-  "S/ 5,001 a S/ 10,000",
-  "S/ 10,001 a S/ 20,000",
-  "S/ 20,001 a S/ 50,000",
-  "S/ 50,001 a S/ 100,000",
-  "Más de S/ 100,000",
-  "Todavía no puedo estimarlo",
+const STEP_TITLES = [
+  "1. Identificación RUC y Régimen Actual",
+  "2. Ventas, Compras y Comprobantes",
+  "3. Locales, Personal y Activos de Cocina",
 ];
-
-const activityExamples: Record<string, string[]> = {
-  alimentos: ["Restaurante", "Cafetería", "Comida para llevar", "Pastelería", "Servicio de catering"],
-  comercio: ["Tienda de ropa", "Bodega o minimarket", "Venta de abarrotes", "Ferretería", "Venta por Internet"],
-  tecnologia: ["Desarrollo de software", "Diseño de páginas web", "Aplicaciones móviles", "Soporte técnico", "Consultoría TI"],
-  profesional: ["Consultoría empresarial", "Diseño gráfico", "Servicios contables", "Asesoría legal", "Servicios técnicos"],
-  construccion: ["Construcción de viviendas", "Remodelación", "Instalaciones eléctricas", "Acabados", "Contratista general"],
-  transporte: ["Transporte de carga", "Transporte de pasajeros", "Servicio de taxi", "Mensajería y reparto", "Transporte turístico"],
-  manufactura: ["Fabricación de muebles", "Confección textil", "Elaboración de lácteos", "Panadería industrial", "Artesanía"],
-  turismo: [
-    "Vendo o reservo pasajes, hoteles y paquetes de otros proveedores",
-    "Organizo y opero mis propios tours o excursiones",
-    "Ofrezco ambos: agencia de viajes y tours propios",
-    "Guía de turismo",
-  ],
-  alojamiento: ["Hospedaje", "Hotel", "Hostal", "Alquiler de habitaciones", "Alojamiento turístico"],
-  educacion: ["Centro de capacitación", "Clases particulares", "Academia de idiomas", "Talleres educativos", "Tutoría"],
-  salud: ["Consultorio médico", "Atención de enfermería", "Rehabilitación física", "Consultorio odontológico", "Laboratorio"],
-  belleza: ["Salón de belleza", "Peluquería", "Manicure y pedicure", "Barbería", "Spa y estética"],
-  agricultura: ["Cultivo de hortalizas", "Cultivo de frutas", "Producción lechera", "Crianza de animales", "Venta agrícola"],
-  importacion: ["Importación de ropa", "Importación de equipos", "Importación de repuestos", "Importación para venta"],
-  exportacion: ["Exportación agrícola", "Exportación de artesanías", "Exportación de café o cacao", "Venta al exterior"],
-  entretenimiento: ["Organización de eventos", "Producción musical", "Espectáculos en vivo", "Juegos recreativos", "Audiovisual"],
-};
-
-const answer = (data: Answers, id: string) => String(data[id] || "");
-const number = (data: Answers, id: string) => Number(answer(data, id)) || 0;
-const yes = (data: Answers, id: string) => answer(data, id) === "Sí";
-const selectedStyle = "border-blue-600 bg-blue-50/70 ring-2 ring-blue-600/15";
-
-function toContext(a: Answers): BusinessContext {
-  const sectorId = sectorMap[answer(a, "P01")] || "otro";
-  const description = answer(a, "P02") || answer(a, "P01.1");
-  const normalizeActivity = (text: string) =>
-    text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLocaleLowerCase("es");
-  const normalizedDescription = normalizeActivity(description);
-  const tourismAgency = sectorId === "turismo" && /\b(agencia|reserv|pasaj|boleto|tercer|proveedor)\b/.test(normalizedDescription);
-  const tourismOperator =
-    sectorId === "turismo" && /oper|organiz|realiz|ofrezco|hago|propio|excursion|tour/.test(normalizedDescription) && !tourismAgency;
-
-  const matched = !normalizedDescription
-    ? undefined
-    : tourismAgency
-    ? activities.find((item) => item.id === "agencia")
-    : tourismOperator
-    ? activities.find((item) => item.id === "operador-turistico")
-    : activities.find(
-        (item) =>
-          item.sectorId === sectorId &&
-          (normalizeActivity(item.name).includes(normalizedDescription) || normalizedDescription.includes(normalizeActivity(item.name))),
-      ) || (sectorId !== "otro" ? activities.find((item) => item.sectorId === sectorId) : undefined);
-
-  const invoice = answer(a, "P23");
-  const customerAnswer = answer(a, "P22");
-
-  return {
-    questionnaire: a,
-    businessName: description || answer(a, "P01.1") || "Mi negocio",
-    purpose: answer(a, "P03").includes("formalizad")
-      ? "revisar"
-      : answer(a, "P03").includes("ventas") || answer(a, "P03").includes("opero")
-      ? "formalizar"
-      : "crear",
-    sectorId,
-    activityId: matched?.id || "",
-    otherActivity: description,
-    department: answer(a, "P04"),
-    province: answer(a, "P05") === "No encuentro mi provincia" ? answer(a, "P05_TEXT") : answer(a, "P05"),
-    district: answer(a, "P06") === "No encuentro mi distrito" ? answer(a, "P06_TEXT") : answer(a, "P06"),
-    legalPerson:
-      answer(a, "P09") === "Persona natural"
-        ? "natural"
-        : answer(a, "P09") === "Persona jurídica / empresa"
-        ? "juridica"
-        : "aun-no-se",
-    hasPartners: ["2 personas", "3 personas", "4 o más"].includes(answer(a, "P07")),
-    partnerCount: answer(a, "P07") === "2 personas" ? 2 : answer(a, "P07") === "3 personas" ? 3 : answer(a, "P07") === "4 o más" ? 4 : 1,
-    hasPhysicalLocation: yes(a, "P10"),
-    servesPublic: yes(a, "P12") || answer(a, "P12") === "Algunas veces",
-    hasEmployees: yes(a, "P28"),
-    employeeCount: number(a, "P29"),
-    employeeCountPerShift: number(a, "P29.1"),
-    sellsOnline: yes(a, "P25"),
-    preparesFood: yes(a, "R01") || yes(a, "M07") || yes(a, "H03") || yes(a, "EN03"),
-    importsGoods: sectorId === "importacion" || yes(a, "C03"),
-    exportsGoods: sectorId === "exportacion" || yes(a, "P27") || yes(a, "A06"),
-    providesRegulatedService: false,
-    customerType:
-      customerAnswer === "Personas"
-        ? "personas"
-        : customerAnswer === "Empresas" || customerAnswer === "Estado"
-        ? "empresas"
-        : customerAnswer === "Personas y empresas" || customerAnswer === "Personas, empresas y Estado"
-        ? "ambos"
-        : "aun-no-se",
-    monthlyRevenue: answer(a, "P20").startsWith("monto:") ? Number(answer(a, "P20").slice(6)) || 0 : 0,
-    monthlyPurchases: number(a, "TAX_PURCHASES"),
-    annualPurchases: number(a, "TAX_PURCHASES") * 12,
-    fixedAssets: number(a, "TAX_ASSETS"),
-    needsInvoices:
-      invoice.startsWith("Sí") || invoice === "Probablemente muy pocas veces"
-        ? true
-        : invoice.startsWith("No, venderé")
-        ? false
-        : null,
-    hasMultipleLocations: false,
-    foreignSourceIncome: false,
-    collectsPersonalData: yes(a, "TE02"),
-  };
-}
-
-function QuestionInput({
-  question,
-  data,
-  setValue,
-}: {
-  question: Question;
-  data: Answers;
-  setValue: (id: string, value: string | string[]) => void;
-}) {
-  const value = data[question.id];
-  const [categorySearch, setCategorySearch] = useState("");
-  const [salesMode, setSalesMode] = useState<"direct" | "calculator">("direct");
-  const inputClass =
-    "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100";
-
-  if (question.id === "P01") {
-    const iconByRubric: Record<string, string> = {
-      "Restaurante / alimentos": "RESTAURANTE.png",
-      "Tienda / comercio": "TIENDA.png",
-      Tecnología: "TECNOLOGIA.png",
-      Servicios: "SERVICIOS.png",
-      Construcción: "CONSTRUCCION.png",
-      Transporte: "TRANSPORTE.png",
-      Manufactura: "MANUFACTURA.png",
-      Turismo: "TURISMO.png",
-      Hospedaje: "HOSPEDAJE.png",
-      Educación: "EDUCACION.png",
-      Salud: "SALUD.png",
-      Belleza: "BELLEZA.png",
-      Agropecuario: "AGROPECUARIO.png",
-      Importación: "IMPORTACION.png",
-      Exportación: "EXPORTACION.png",
-      Entretenimiento: "entretenimiento.png",
-    };
-    const normalize = (text: string) =>
-      text
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLocaleLowerCase("es");
-    const rubrics = (question.options || []).filter(
-      (item) => item.value !== "Otro" && normalize(item.label).includes(normalize(categorySearch)),
-    );
-    const selectedOther = value === "Otro";
-
-    return (
-      <div className="space-y-4">
-        <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-slate-400 focus-within:border-blue-600 focus-within:bg-white">
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0" stroke="currentColor" strokeWidth="2">
-            <circle cx="10.8" cy="10.8" r="6.8" />
-            <path strokeLinecap="round" d="m16 16 5 5" />
-          </svg>
-          <span className="sr-only">Buscar rubro</span>
-          <input
-            type="search"
-            value={categorySearch}
-            onChange={(event) => setCategorySearch(event.target.value)}
-            placeholder="Filtrar rubro (ej. restaurante, tienda, tecnología)..."
-            className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-          />
-        </label>
-
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-          {rubrics.map((item, index) => {
-            const on = value === item.value;
-            const id = "rubric-" + index;
-            return (
-              <div key={item.value} className="relative">
-                <input
-                  id={id}
-                  className="peer sr-only"
-                  type="radio"
-                  name={question.id}
-                  checked={on}
-                  onChange={() => setValue(question.id, item.value)}
-                />
-                <label
-                  htmlFor={id}
-                  className={
-                    "flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition hover:border-blue-400 " +
-                    (on ? selectedStyle : "border-slate-200 bg-white")
-                  }
-                >
-                  <Image
-                    src={"/rubros/" + iconByRubric[item.value]}
-                    alt=""
-                    width={28}
-                    height={28}
-                    className="h-7 w-7 shrink-0 object-contain"
-                  />
-                  <span className="text-xs font-bold leading-4 text-slate-800">{item.label}</span>
-                  {on && (
-                    <span className="ml-auto grid h-5 w-5 shrink-0 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
-                      ✓
-                    </span>
-                  )}
-                </label>
-              </div>
-            );
-          })}
-
-          <div className="relative">
-            <input
-              id="rubric-other"
-              className="peer sr-only"
-              type="radio"
-              name={question.id}
-              checked={selectedOther}
-              onChange={() => setValue(question.id, "Otro")}
-            />
-            <label
-              htmlFor="rubric-other"
-              className={
-                "flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition hover:border-blue-400 " +
-                (selectedOther ? selectedStyle : "border-slate-200 bg-white")
-              }
-            >
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-100 text-xs font-black text-blue-600">
-                +
-              </span>
-              <span className="text-xs font-bold text-slate-800">Otro rubro</span>
-            </label>
-          </div>
-        </div>
-
-        {selectedOther && (
-          <input
-            autoFocus
-            type="text"
-            value={answer(data, "P01.1")}
-            onChange={(event) => setValue("P01.1", event.target.value)}
-            placeholder="Especifica el rubro de tu negocio..."
-            className={inputClass}
-          />
-        )}
-      </div>
-    );
-  }
-
-  if (question.id === "P02") {
-    const sectorId = sectorMap[answer(data, "P01")] || "otro";
-    const query = typeof value === "string" ? value : "";
-    const examples = sectorId === "otro" ? [] : activityExamples[sectorId] || [];
-
-    return (
-      <div className="space-y-4">
-        <div className="relative">
-          <input
-            id="main-activity-description"
-            autoFocus
-            type="text"
-            value={query}
-            onChange={(event) => setValue(question.id, event.target.value)}
-            placeholder="Ej. Cafetería y pastelería, Bodega de abarrotes, Desarrollo de software..."
-            className={inputClass + " pr-10"}
-          />
-          {query && (
-            <button
-              type="button"
-              aria-label="Borrar descripción"
-              onClick={() => setValue(question.id, "")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            >
-              ×
-            </button>
-          )}
-        </div>
-
-        {examples.length > 0 && (
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Sugerencias rápidas para elegir en 1 clic:</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {examples.map((example) => (
-                <button
-                  type="button"
-                  key={example}
-                  onClick={() => setValue(question.id, example)}
-                  className={
-                    "rounded-xl border px-3.5 py-2 text-xs font-bold transition " +
-                    (query === example
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-blue-50")
-                  }
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (question.id === "P04") {
-    const department = answer(data, "P04");
-    const province = answer(data, "P05");
-    const district = answer(data, "P06");
-    const departments = [...new Set(locations.map((item) => item.department))];
-    const provinces = provincesFor(department);
-    const districts = districtsFor(department, province);
-
-    const selectField = (
-      label: string,
-      list: string[],
-      current: string,
-      onChange: (value: string) => void,
-      disabled = false,
-      extra?: ReactNode,
-    ) => (
-      <label className="block">
-        <span className="mb-1.5 block text-xs font-bold text-slate-700">{label}</span>
-        <select
-          value={current}
-          onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
-          className={inputClass + " text-sm disabled:bg-slate-100 disabled:text-slate-400"}
-        >
-          <option value="">Selecciona {label.toLowerCase()}</option>
-          {list.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-          {extra}
-        </select>
-      </label>
-    );
-
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-400">Selección rápida:</span>
-          {[
-            ["Cajamarca", "Cajamarca", "Cajamarca"],
-            ["Cajamarca", "Cajamarca", "Los Baños del Inca"],
-            ["Cajamarca", "Jaén", "Jaén"],
-            ["Cajamarca", "Chota", "Chota"],
-          ].map(([dep, prov, dist]) => (
-            <button
-              key={dist}
-              type="button"
-              onClick={() => {
-                setValue("P04", dep);
-                setTimeout(() => {
-                  setValue("P05", prov);
-                  setValue("P06", dist);
-                }, 0);
-              }}
-              className="rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100"
-            >
-              📍 {dist}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {selectField("Departamento", departments, department, (val) => setValue("P04", val))}
-          {selectField(
-            "Provincia",
-            provinces,
-            province,
-            (val) => setValue("P05", val),
-            !department,
-            <option value="No encuentro mi provincia">Otra provincia</option>,
-          )}
-          {selectField(
-            "Distrito",
-            districts,
-            district,
-            (val) => setValue("P06", val),
-            !province,
-            <option value="No encuentro mi distrito">Otro distrito</option>,
-          )}
-        </div>
-
-        {province === "No encuentro mi provincia" && (
-          <input
-            className={inputClass}
-            value={answer(data, "P05_TEXT")}
-            onChange={(event) => setValue("P05_TEXT", event.target.value)}
-            placeholder="Escribe el nombre de tu provincia"
-          />
-        )}
-        {district === "No encuentro mi distrito" && (
-          <input
-            className={inputClass}
-            value={answer(data, "P06_TEXT")}
-            onChange={(event) => setValue("P06_TEXT", event.target.value)}
-            placeholder="Escribe el nombre de tu distrito"
-          />
-        )}
-      </div>
-    );
-  }
-
-  if (question.kind === "text" || question.kind === "number") {
-    const isTaxAmount = question.id === "TAX_PURCHASES" || question.id === "TAX_ASSETS";
-    const presets =
-      question.id === "TAX_PURCHASES"
-        ? [
-            ["0", "S/ 0 (Sin compras)"],
-            ["800", "S/ 800"],
-            ["1800", "S/ 1,800"],
-            ["4500", "S/ 4,500"],
-            ["10500", "S/ 10,500"],
-          ]
-        : question.id === "TAX_ASSETS"
-        ? [
-            ["0", "S/ 0 (Sin equipos)"],
-            ["2500", "S/ 2,500"],
-            ["8500", "S/ 8,500"],
-            ["22000", "S/ 22,000"],
-            ["80000", "S/ 80,000"],
-          ]
-        : [];
-
-    return (
-      <div className="space-y-3">
-        <div className="relative">
-          {isTaxAmount && (
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base font-bold text-slate-400">
-              S/
-            </span>
-          )}
-          <input
-            autoFocus
-            type={question.kind === "number" ? "number" : "text"}
-            min={question.kind === "number" ? 0 : undefined}
-            value={typeof value === "string" ? value : ""}
-            onChange={(event) => setValue(question.id, event.target.value)}
-            placeholder={isTaxAmount ? "0" : question.kind === "number" ? "Cantidad" : "Escribe tu respuesta"}
-            className={inputClass + (isTaxAmount ? " pl-10 font-bold" : "")}
-          />
-        </div>
-        {presets.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {presets.map(([amount, label]) => (
-              <button
-                type="button"
-                key={amount}
-                onClick={() => setValue(question.id, amount)}
-                className={
-                  "rounded-xl border px-3.5 py-2 text-xs font-bold transition " +
-                  (value === amount
-                    ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300")
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (question.kind === "range") {
-    type EstimateLine = { id: string; name: string; quantity: string; price: string };
-    const savedLines = (() => {
-      try {
-        const saved = JSON.parse(answer(data, "P20_EST_ITEMS")) as EstimateLine[];
-        return Array.isArray(saved) ? saved : [];
-      } catch {
-        return [];
-      }
-    })();
-    const estimateLines: EstimateLine[] = savedLines.length
-      ? savedLines
-      : [{ id: "item-1", name: "", quantity: "", price: "" }];
-    const updateLines = (lines: EstimateLine[]) => setValue("P20_EST_ITEMS", JSON.stringify(lines));
-    const projectedAmount =
-      Math.round(estimateLines.reduce((total, line) => total + (Number(line.quantity) || 0) * (Number(line.price) || 0), 0) * 100) /
-      100;
-    const currentAmount = typeof value === "string" && value.startsWith("monto:") ? value.slice(6) : "";
-
-    return (
-      <div className="space-y-4">
-        {/* Clean 2-Tab Switcher for Sales Input */}
-        <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => setSalesMode("direct")}
-            className={
-              "rounded-lg px-3.5 py-2 transition " +
-              (salesMode === "direct" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
-            }
-          >
-            Monto rápido o rango
-          </button>
-          <button
-            type="button"
-            onClick={() => setSalesMode("calculator")}
-            className={
-              "rounded-lg px-3.5 py-2 transition " +
-              (salesMode === "calculator" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600")
-            }
-          >
-            Calculadora por producto / servicio
-          </button>
-        </div>
-
-        {salesMode === "direct" ? (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
-              <label className="block text-xs font-bold text-slate-700">
-                Monto mensual estimado de ventas (S/)
-                <div className="relative mt-1.5">
-                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">
-                    S/
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    step="100"
-                    className={inputClass + " pl-10 font-bold"}
-                    value={currentAmount}
-                    onChange={(event) => setValue(question.id, event.target.value ? "monto:" + event.target.value : "")}
-                    placeholder="Ej. 4200"
-                  />
-                </div>
-              </label>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {[
-                  ["2500", "S/ 2,500 (NRUS Cat. 1)"],
-                  ["4200", "S/ 4,200 (NRUS Cat. 1)"],
-                  ["7000", "S/ 7,000 (NRUS Cat. 2)"],
-                  ["16500", "S/ 16,500 (RER / RMT)"],
-                  ["28000", "S/ 28,000 (RMT)"],
-                ].map(([amt, label]) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => setValue(question.id, "monto:" + amt)}
-                    className={
-                      "rounded-lg border px-3 py-1.5 text-xs font-bold transition " +
-                      (currentAmount === amt
-                        ? "border-blue-600 bg-blue-600 text-white"
-                        : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50")
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                O selecciona un rango referencial:
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {amountRanges.map((item) => (
-                  <button
-                    type="button"
-                    key={item}
-                    onClick={() => setValue(question.id, item)}
-                    className={
-                      "rounded-xl border px-3.5 py-2.5 text-left text-xs font-bold transition " +
-                      (value === item ? selectedStyle : "border-slate-200 bg-white text-slate-700 hover:border-blue-300")
-                    }
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-            <p className="text-xs text-slate-600">
-              Agrega tus productos o servicios principales para estimar tus ingresos mensuales:
-            </p>
-            {estimateLines.map((line, index) => (
-              <div key={line.id} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_110px_120px_auto] sm:items-end">
-                <label className="block text-xs font-bold text-slate-700">
-                  Producto / Servicio {index + 1}
-                  <input
-                    type="text"
-                    value={line.name}
-                    onChange={(e) =>
-                      updateLines(estimateLines.map((item) => (item.id === line.id ? { ...item, name: e.target.value } : item)))
-                    }
-                    placeholder="Ej. Menú, corte, consulta"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-normal"
-                  />
-                </label>
-                <label className="block text-xs font-bold text-slate-700">
-                  Cant. / mes
-                  <input
-                    type="number"
-                    min={0}
-                    value={line.quantity}
-                    onChange={(e) =>
-                      updateLines(estimateLines.map((item) => (item.id === line.id ? { ...item, quantity: e.target.value } : item)))
-                    }
-                    placeholder="Ej. 80"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-normal"
-                  />
-                </label>
-                <label className="block text-xs font-bold text-slate-700">
-                  Precio (S/)
-                  <input
-                    type="number"
-                    min={0}
-                    value={line.price}
-                    onChange={(e) =>
-                      updateLines(estimateLines.map((item) => (item.id === line.id ? { ...item, price: e.target.value } : item)))
-                    }
-                    placeholder="Ej. 25"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-normal"
-                  />
-                </label>
-                {estimateLines.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => updateLines(estimateLines.filter((item) => item.id !== line.id))}
-                    className="rounded-lg px-2.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"
-                  >
-                    Quitar
-                  </button>
-                )}
-              </div>
-            ))}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() =>
-                  updateLines([...estimateLines, { id: `item-${Date.now()}`, name: "", quantity: "", price: "" }])
-                }
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50"
-              >
-                + Añadir fila
-              </button>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-700">
-                  Total calculado: <b className="text-sm text-blue-600">S/ {projectedAmount}</b>
-                </span>
-                <button
-                  type="button"
-                  disabled={projectedAmount <= 0}
-                  onClick={() => {
-                    setValue(question.id, "monto:" + projectedAmount);
-                    setSalesMode("direct");
-                  }}
-                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-                >
-                  Aplicar monto →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const multiple = question.kind === "multiple";
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {question.options?.map((item, index) => {
-        const on = multiple ? Array.isArray(value) && value.includes(item.value) : value === item.value;
-        return (
-          <label
-            key={item.value}
-            className={
-              "relative flex cursor-pointer items-center gap-3.5 rounded-2xl border p-4 transition hover:border-blue-400 " +
-              (on ? selectedStyle : "border-slate-200 bg-white")
-            }
-          >
-            <input
-              className="sr-only"
-              type={multiple ? "checkbox" : "radio"}
-              name={question.id}
-              checked={Boolean(on)}
-              onChange={() => {
-                if (multiple) {
-                  const current = Array.isArray(value) ? value : [];
-                  setValue(question.id, on ? current.filter((v) => v !== item.value) : [...current, item.value]);
-                } else setValue(question.id, item.value);
-              }}
-            />
-            <span
-              className={
-                "grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold " +
-                (on ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600")
-              }
-            >
-              {on ? "✓" : index + 1}
-            </span>
-            <span className="text-sm font-bold leading-snug text-slate-800">{item.label}</span>
-          </label>
-        );
-      })}
-    </div>
-  );
-}
 
 export function BusinessWizard() {
   const router = useRouter();
-  const [data, setData] = useState<Answers>({});
-  const [section, setSection] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const accountDraftKey = scopedStorageKey(draftKey);
-  const accountContextKey = scopedStorageKey("efp-business-context");
+  const [step, setStep] = useState<number>(0);
+  const [saving, setSaving] = useState<boolean>(false);
 
+  // Campos de la ficha "Mi restaurante"
+  const [ruc, setRuc] = useState<string>("10428519302");
+  const [businessName, setBusinessName] = useState<string>(
+    "Restaurante Tradicional El Cumbe"
+  );
+  const [district, setDistrict] = useState<string>("Cajamarca");
+  const [personType, setPersonType] = useState<
+    "PERSONA_NATURAL" | "PERSONA_JURIDICA"
+  >("PERSONA_NATURAL");
+  const [currentRegime, setCurrentRegime] = useState<
+    TaxRegimeCode | "SIN_REGIMEN" | "DESCONOCIDO"
+  >("NRUS");
+  const [restaurantSpecialty, setRestaurantSpecialty] =
+    useState<RestaurantActivityCode>("RESTAURANTE_MENU");
+  const [ciiu, setCiiu] = useState<string>("5610");
+
+  // Ventas, compras y comprobantes
+  const [monthlyRevenue, setMonthlyRevenue] = useState<string>("4500");
+  const [annualRevenue, setAnnualRevenue] = useState<string>("54000");
+  const [monthlyPurchasesWithInvoice, setMonthlyPurchasesWithInvoice] =
+    useState<string>("1500");
+  const [monthlyPurchasesWithoutInvoice, setMonthlyPurchasesWithoutInvoice] =
+    useState<string>("700");
+  const [monthlyOperatingExpenses, setMonthlyOperatingExpenses] =
+    useState<string>("900");
+  const [needsFacturas, setNeedsFacturas] = useState<boolean>(false);
+  const [emittedReceipts, setEmittedReceipts] = useState<ReceiptType[]>([
+    "BOLETA",
+  ]);
+
+  // Locales, personal por turno, activos y condiciones especiales
+  const [establishmentCount, setEstablishmentCount] = useState<string>("1");
+  const [employeesPerShift, setEmployeesPerShift] = useState<string>("2");
+  const [fixedAssetsValue, setFixedAssetsValue] = useState<string>("12000");
+  const [hasCorporateLinkageOverLimit, setHasCorporateLinkageOverLimit] =
+    useState<boolean>(false);
+  const [isForeignBranch, setIsForeignBranch] = useState<boolean>(false);
+
+  // Distinción explícita entre datos declarados por el usuario y verificados en fuente oficial
+  const [dataOrigins, setDataOrigins] = useState<Record<string, DataOrigin>>({
+    ruc: "VERIFICADO_FUENTE_OFICIAL",
+    currentRegime: "VERIFICADO_FUENTE_OFICIAL",
+    personType: "VERIFICADO_FUENTE_OFICIAL",
+    ciiu: "VERIFICADO_FUENTE_OFICIAL",
+    monthlyRevenue: "DECLARADO_USUARIO",
+    monthlyPurchases: "DECLARADO_USUARIO",
+    fixedAssetsValue: "DECLARADO_USUARIO",
+    employees: "DECLARADO_USUARIO",
+  });
+
+  // Cargar datos previos si existen en localStorage
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      try {
-        const activeAccount = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
-        if (!activeAccount) {
-          router.replace("/ingresar?requiere=sesion");
-          return;
-        }
-        const saved = localStorage.getItem(accountDraftKey);
-        const draft = saved ? JSON.parse(saved) : {};
-        const answers: Answers = draft.answers || {};
-        const requestedQuestion = new URLSearchParams(window.location.search).get("continuar");
-        let restoredSection = Math.min(4, draft.section || 0);
-        let restoredPosition = draft.position || 0;
-        if (requestedQuestion === "tributario") {
-          restoredSection = 2;
-          restoredPosition = 0;
-        } else if (requestedQuestion) {
-          for (let index = 0; index < 5; index++) {
-            const targetPosition = visibleQuestions(index, answers).findIndex((question) => question.id === requestedQuestion);
-            if (targetPosition >= 0) {
-              restoredSection = index;
-              restoredPosition = targetPosition;
-              break;
-            }
-          }
-        }
-        setData(answers);
-        setSection(restoredSection);
-        setPosition(Math.max(0, Math.min(restoredPosition, visibleQuestions(restoredSection, answers).length - 1)));
-      } catch {}
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [accountDraftKey, router]);
-
-  const current = useMemo(() => visibleQuestions(section, data), [section, data]);
-  const q = current[Math.min(position, Math.max(0, current.length - 1))];
-  const value = q ? data[q.id] : undefined;
-
-  const canContinue =
-    section === 4 ||
-    !q ||
-    ((q.optional || (Array.isArray(value) ? value.length > 0 : Boolean(String(value || "").trim()))) &&
-      !(q.id === "P01" && value === "Otro" && !answer(data, "P01.1").trim()) &&
-      !(
-        q.id === "P04" &&
-        (!answer(data, "P05") ||
-          !answer(data, "P06") ||
-          (answer(data, "P05") === "No encuentro mi provincia" && !answer(data, "P05_TEXT").trim()) ||
-          (answer(data, "P06") === "No encuentro mi distrito" && !answer(data, "P06_TEXT").trim()))
-      ));
-
-  const setValue = (id: string, val: string | string[]) =>
-    setData((previous) => {
-      const next = { ...previous, [id]: val };
-      if (id === "P04") {
-        next.P05 = "";
-        next.P05_TEXT = "";
-        next.P06 = "";
-        next.P06_TEXT = "";
-      }
-      if (id === "P05") {
-        next.P06 = "";
-        next.P06_TEXT = "";
-        if (val !== "No encuentro mi provincia") next.P05_TEXT = "";
-      }
-      if (id === "P06" && val !== "No encuentro mi distrito") next.P06_TEXT = "";
-      localStorage.setItem(accountDraftKey, JSON.stringify({ answers: next, section, position }));
-      return next;
-    });
-
-  const move = (direction: 1 | -1) => {
-    if (direction === 1) {
-      if (position < current.length - 1) setPosition(position + 1);
-      else {
-        setSection(Math.min(4, section + 1));
-        setPosition(0);
-      }
-    } else if (position > 0) setPosition(position - 1);
-    else if (section > 0) {
-      const before = visibleQuestions(section - 1, data);
-      setSection(section - 1);
-      setPosition(Math.max(0, before.length - 1));
-    }
-    const nextSection =
-      direction === 1 && position >= current.length - 1
-        ? Math.min(4, section + 1)
-        : direction === -1 && position === 0
-        ? Math.max(0, section - 1)
-        : section;
-    localStorage.setItem(
-      accountDraftKey,
-      JSON.stringify({
-        answers: data,
-        section: nextSection,
-        position:
-          direction === 1 && position >= current.length - 1
-            ? 0
-            : direction === -1 && position === 0
-            ? Math.max(0, visibleQuestions(nextSection, data).length - 1)
-            : position + direction,
-      }),
-    );
-  };
-
-  const jumpToQuestion = (questionId: string) => {
-    for (let s = 0; s < 4; s++) {
-      const idx = visibleQuestions(s, data).findIndex((item) => item.id === questionId);
-      if (idx >= 0) {
-        setSection(s);
-        setPosition(idx);
-        localStorage.setItem(accountDraftKey, JSON.stringify({ answers: data, section: s, position: idx }));
-        return;
-      }
-    }
-  };
-
-  const resetWizard = () => {
-    setData({});
-    setSection(0);
-    setPosition(0);
     try {
-      localStorage.removeItem(accountDraftKey);
+      const savedRaw = localStorage.getItem(
+        scopedStorageKey("efp-business-context")
+      );
+      if (!savedRaw) return;
+      const saved = JSON.parse(savedRaw) as BusinessContext;
+      if (saved.ruc) setRuc(saved.ruc);
+      if (saved.businessName) setBusinessName(saved.businessName);
+      if (saved.district) setDistrict(saved.district);
+      if (saved.personType) setPersonType(saved.personType);
+      if (saved.currentRegime) setCurrentRegime(saved.currentRegime);
+      if (saved.restaurantSpecialty)
+        setRestaurantSpecialty(saved.restaurantSpecialty);
+      if (saved.ciiu) setCiiu(saved.ciiu);
+      if (saved.monthlyRevenue !== undefined)
+        setMonthlyRevenue(String(saved.monthlyRevenue));
+      if (saved.annualRevenue !== undefined)
+        setAnnualRevenue(String(saved.annualRevenue));
+      if (saved.monthlyPurchasesWithInvoice !== undefined)
+        setMonthlyPurchasesWithInvoice(
+          String(saved.monthlyPurchasesWithInvoice)
+        );
+      if (saved.monthlyPurchasesWithoutInvoice !== undefined)
+        setMonthlyPurchasesWithoutInvoice(
+          String(saved.monthlyPurchasesWithoutInvoice)
+        );
+      if (saved.monthlyOperatingExpenses !== undefined)
+        setMonthlyOperatingExpenses(String(saved.monthlyOperatingExpenses));
+      if (saved.needsFacturas !== undefined)
+        setNeedsFacturas(saved.needsFacturas);
+      if (saved.emittedReceipts) setEmittedReceipts(saved.emittedReceipts);
+      if (saved.establishmentCount !== undefined)
+        setEstablishmentCount(String(saved.establishmentCount));
+      if (saved.employees !== undefined)
+        setEmployeesPerShift(String(saved.employees));
+      if (saved.fixedAssetsValue !== undefined)
+        setFixedAssetsValue(String(saved.fixedAssetsValue));
+      if (saved.hasCorporateLinkageOverLimit !== undefined)
+        setHasCorporateLinkageOverLimit(
+          Boolean(saved.hasCorporateLinkageOverLimit)
+        );
+      if (saved.isForeignBranch !== undefined)
+        setIsForeignBranch(Boolean(saved.isForeignBranch));
+      if (saved.dataOrigins) setDataOrigins(saved.dataOrigins);
     } catch {}
-  };
+  }, []);
 
-  const finish = async () => {
-    setBusy(true);
-    const context = toContext(data);
-    localStorage.setItem(accountContextKey, JSON.stringify(context));
-    let targetPath = "/negocios/demo/ruta";
-    try {
-      const firestoreId = await saveBusinessToFirestore(context);
-      if (firestoreId) {
-        targetPath = `/negocios/${firestoreId}/ruta`;
-      }
-    } catch {
-    } finally {
-      setBusy(false);
-      router.push(targetPath);
+  const handleRucChange = (val: string) => {
+    const cleaned = val.replace(/\D/g, "").slice(0, 11);
+    setRuc(cleaned);
+    if (cleaned.startsWith("20")) {
+      setPersonType("PERSONA_JURIDICA");
+    } else if (cleaned.startsWith("10") || cleaned.startsWith("15")) {
+      setPersonType("PERSONA_NATURAL");
     }
   };
 
-  const previewContext = useMemo(() => toContext(data), [data]);
-  const previewSteps = useMemo(() => RuleEngine.evaluate(previewContext, rules, sources), [previewContext]);
-  const previewTax = useMemo(() => getTaxPath(previewContext), [previewContext]);
+  const handleMonthlySalesChange = (val: string) => {
+    setMonthlyRevenue(val);
+    const num = Number(val);
+    if (!Number.isNaN(num) && val.trim() !== "") {
+      setAnnualRevenue(String(Math.round(num * 12)));
+    } else {
+      setAnnualRevenue("");
+    }
+  };
 
-  const summary: [string, string, string][] = [
-    ["Actividad", answer(data, "P02") || answer(data, "P01.1") || "Sin definir", "P02"],
-    ["Rubro", answer(data, "P01"), "P01"],
-    [
-      "Ubicación",
-      [
-        answer(data, "P06") === "No encuentro mi distrito" ? answer(data, "P06_TEXT") : answer(data, "P06"),
-        answer(data, "P05") === "No encuentro mi provincia" ? answer(data, "P05_TEXT") : answer(data, "P05"),
-        answer(data, "P04"),
-      ]
-        .filter(Boolean)
-        .join(", "),
-      "P04",
-    ],
-    ["Etapa", answer(data, "P03"), "P03"],
-    ["Propietarios y forma", [answer(data, "P07"), answer(data, "P09")].filter(Boolean).join(" · "), "P07"],
-    ["Local físico", answer(data, "P10") === "Sí" ? answer(data, "P11") || "Sí" : "No", "P10"],
-    [
-      "Ventas mensuales",
-      answer(data, "P20").startsWith("monto:") ? "S/ " + answer(data, "P20").slice(6) : answer(data, "P20"),
-      "P20",
-    ],
-    [
-      "Compras y activos",
-      [
-        answer(data, "TAX_PURCHASES") ? `Compras: S/ ${answer(data, "TAX_PURCHASES")}` : "",
-        answer(data, "TAX_ASSETS") ? `Equipos: S/ ${answer(data, "TAX_ASSETS")}` : "",
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      "TAX_PURCHASES",
-    ],
-    ["Clientes y facturas", [answer(data, "P22"), answer(data, "P23")].filter(Boolean).join(" · "), "P22"],
-    [
-      "Trabajadores",
-      answer(data, "P28") === "Sí" ? `${answer(data, "P29") || 0} total (${answer(data, "P29.1") || 0} por turno)` : answer(data, "P28"),
-      "P28",
-    ],
-  ];
+  const toggleReceipt = (receipt: ReceiptType) => {
+    setEmittedReceipts((prev) => {
+      const exists = prev.includes(receipt);
+      const next = exists
+        ? prev.filter((item) => item !== receipt)
+        : [...prev, receipt];
+      if (next.includes("FACTURA")) {
+        setNeedsFacturas(true);
+      }
+      return next.length > 0 ? next : ["BOLETA"];
+    });
+  };
+
+  const toggleOrigin = (field: string) => {
+    setDataOrigins((prev) => ({
+      ...prev,
+      [field]:
+        prev[field] === "VERIFICADO_FUENTE_OFICIAL"
+          ? "DECLARADO_USUARIO"
+          : "VERIFICADO_FUENTE_OFICIAL",
+    }));
+  };
+
+  const applyPreset = (presetContext: BusinessContext) => {
+    setRuc(presetContext.ruc || "10428519302");
+    setBusinessName(presetContext.businessName || "Mi Restaurante");
+    setDistrict(presetContext.district || "Cajamarca");
+    setPersonType(presetContext.personType || "PERSONA_NATURAL");
+    setCurrentRegime(presetContext.currentRegime || "NRUS");
+    setRestaurantSpecialty(
+      presetContext.restaurantSpecialty || "RESTAURANTE_MENU"
+    );
+    setCiiu(presetContext.ciiu || "5610");
+    setMonthlyRevenue(String(presetContext.monthlyRevenue ?? 4500));
+    setAnnualRevenue(String(presetContext.annualRevenue ?? 54000));
+    setMonthlyPurchasesWithInvoice(
+      String(presetContext.monthlyPurchasesWithInvoice ?? 1500)
+    );
+    setMonthlyPurchasesWithoutInvoice(
+      String(presetContext.monthlyPurchasesWithoutInvoice ?? 700)
+    );
+    setMonthlyOperatingExpenses(
+      String(presetContext.monthlyOperatingExpenses ?? 900)
+    );
+    setNeedsFacturas(Boolean(presetContext.needsFacturas));
+    setEmittedReceipts(presetContext.emittedReceipts || ["BOLETA"]);
+    setEstablishmentCount(String(presetContext.establishmentCount ?? 1));
+    setEmployeesPerShift(String(presetContext.employees ?? 2));
+    setFixedAssetsValue(String(presetContext.fixedAssetsValue ?? 12000));
+    setHasCorporateLinkageOverLimit(
+      Boolean(presetContext.hasCorporateLinkageOverLimit)
+    );
+    setIsForeignBranch(Boolean(presetContext.isForeignBranch));
+    if (presetContext.dataOrigins) setDataOrigins(presetContext.dataOrigins);
+  };
+
+  const buildContextObject = (): BusinessContext => {
+    const parsedMonthlySales =
+      monthlyRevenue.trim() !== "" ? Number(monthlyRevenue) : undefined;
+    const parsedAnnualSales =
+      annualRevenue.trim() !== ""
+        ? Number(annualRevenue)
+        : parsedMonthlySales !== undefined
+          ? parsedMonthlySales * 12
+          : undefined;
+
+    const parsedPurchasesInv =
+      monthlyPurchasesWithInvoice.trim() !== ""
+        ? Number(monthlyPurchasesWithInvoice)
+        : undefined;
+    const parsedPurchasesNoInv =
+      monthlyPurchasesWithoutInvoice.trim() !== ""
+        ? Number(monthlyPurchasesWithoutInvoice)
+        : 0;
+
+    const totalMonthlyPurchases =
+      parsedPurchasesInv !== undefined
+        ? parsedPurchasesInv + parsedPurchasesNoInv
+        : undefined;
+
+    const parsedAssets =
+      fixedAssetsValue.trim() !== "" ? Number(fixedAssetsValue) : undefined;
+    const parsedEmployees =
+      employeesPerShift.trim() !== "" ? Number(employeesPerShift) : undefined;
+    const parsedEstablishments =
+      establishmentCount.trim() !== "" ? Number(establishmentCount) : 1;
+
+    const activityId =
+      restaurantSpecialty === "CATERING_EVENTOS"
+        ? "catering"
+        : restaurantSpecialty === "CAFETERIA_FUENTE_SODA"
+          ? "cafeteria"
+          : restaurantSpecialty === "PICANTERIA_TRADICIONAL"
+            ? "picanteria"
+            : "restaurante";
+
+    return {
+      ruc: ruc.trim(),
+      businessName: businessName.trim() || "Restaurante en Cajamarca",
+      currentRegime,
+      ciiu,
+      restaurantSpecialty,
+      purpose: "formalizar",
+      sectorId: "restaurantes",
+      activityId,
+      otherActivity: businessName.trim(),
+      department: "Cajamarca",
+      province: "Cajamarca",
+      district,
+      legalPerson: personType === "PERSONA_JURIDICA" ? "juridica" : "natural",
+      personType,
+      hasPartners: personType === "PERSONA_JURIDICA",
+      partnerCount: personType === "PERSONA_JURIDICA" ? 2 : 1,
+      hasPhysicalLocation: true,
+      hasLocal: true,
+      servesPublic: true,
+      hasEmployees: (parsedEmployees ?? 0) > 0,
+      employeeCount: parsedEmployees ?? 0,
+      employeeCountPerShift: parsedEmployees,
+      employees: parsedEmployees,
+      sellsOnline: false,
+      preparesFood: true,
+      importsGoods: false,
+      exportsGoods: false,
+      providesRegulatedService: false,
+      customerType: needsFacturas ? "ambos" : "personas",
+      monthlyRevenue: parsedMonthlySales,
+      annualRevenue: parsedAnnualSales,
+      monthlyPurchases: totalMonthlyPurchases,
+      monthlyPurchasesWithInvoice: parsedPurchasesInv,
+      monthlyPurchasesWithoutInvoice: parsedPurchasesNoInv,
+      monthlyOperatingExpenses:
+        monthlyOperatingExpenses.trim() !== ""
+          ? Number(monthlyOperatingExpenses)
+          : 0,
+      annualPurchases:
+        totalMonthlyPurchases !== undefined
+          ? totalMonthlyPurchases * 12
+          : undefined,
+      fixedAssets: parsedAssets,
+      fixedAssetsValue: parsedAssets,
+      establishmentCount: parsedEstablishments,
+      needsInvoices: needsFacturas,
+      needsFacturas,
+      emittedReceipts,
+      hasMultipleLocations: parsedEstablishments > 1,
+      hasCorporateLinkageOverLimit,
+      isForeignBranch,
+      foreignSourceIncome: false,
+      collectsPersonalData: false,
+      dataOrigins,
+    };
+  };
+
+  const currentContext = buildContextObject();
+  const liveEval = RuleEngine.evaluate(currentContext, seedCatalog);
+
+  const handleSaveAndEvaluate = async () => {
+    setSaving(true);
+    try {
+      const ctx = buildContextObject();
+      localStorage.setItem(
+        scopedStorageKey("efp-business-context"),
+        JSON.stringify(ctx)
+      );
+
+      // Registrar intervención académica si el restaurante participa en el estudio
+      try {
+        const activeParticipant = localStorage.getItem(
+          "crea-active-participant-code"
+        );
+        if (activeParticipant) {
+          const rawMap = localStorage.getItem("crea-research-records-v1");
+          const map = rawMap ? JSON.parse(rawMap) : {};
+          const existing = map[activeParticipant] || {
+            participantCode: activeParticipant,
+            consentAccepted: true,
+          };
+          const visited = new Set<string>(
+            existing.intervention?.modulesVisited || []
+          );
+          visited.add("Mi restaurante");
+          existing.intervention = {
+            participantCode: activeParticipant,
+            modulesVisited: Array.from(visited),
+            completedDiagnostic: true,
+            usedSimulator: Boolean(existing.intervention?.usedSimulator),
+            reviewedObligations: Boolean(
+              existing.intervention?.reviewedObligations
+            ),
+            consultedCreaIa: Boolean(existing.intervention?.consultedCreaIa),
+            firstSessionTimestamp:
+              existing.intervention?.firstSessionTimestamp ||
+              new Date().toISOString(),
+            lastSessionTimestamp: new Date().toISOString(),
+          };
+          map[activeParticipant] = existing;
+          localStorage.setItem("crea-research-records-v1", JSON.stringify(map));
+        }
+      } catch {}
+
+      await saveBusinessToFirestore(ctx);
+      router.push("/negocios?seccion=diagnostico");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <AppHeader />
 
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
-        <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div>
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600">
-                Cuestionario de diagnóstico empresarial
-              </span>
-              <p className="text-xs text-slate-500">
-                Tus respuestas se guardan automáticamente en tu cuenta.
-              </p>
-            </div>
-            {Object.keys(data).length > 0 && (
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+        {/* Header & Security Notice */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+              🍽️ Módulo: Mi restaurante · Cajamarca, Perú
+            </span>
+            <h1 className="mt-2 text-2xl font-extrabold text-slate-900 sm:text-3xl">
+              Ficha Tributaria de Mi Restaurante
+            </h1>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600 sm:text-sm">
+              Registra en lenguaje sencillo las características de tu
+              restaurante formalizado. El sistema distingue entre los datos{" "}
+              <strong>declarados por el usuario</strong> y los{" "}
+              <strong>verificados mediante fuentes oficiales</strong>.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-xs text-emerald-950">
+            <p className="font-extrabold">🔒 Garantía de seguridad tributaria</p>
+            <p className="mt-0.5 text-[11px]">
+              Crea <strong>nunca solicita tu Clave SOL</strong> ni credenciales
+              privadas de SUNAT.
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Preset Selector for Cajamarca Restaurants */}
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-bold text-slate-700">
+              ⚡ Cargar perfil de ejemplo de restaurante en Cajamarca:
+            </span>
+            <a
+              href="https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/FrameCriterioBusquedaWeb.jsp"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-bold text-blue-600 underline hover:text-blue-800"
+            >
+              Verificar RUC en Consulta RUC Oficial SUNAT ↗
+            </a>
+          </div>
+          <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {DEMO_PRESETS.map((preset) => (
               <button
+                key={preset.id}
                 type="button"
-                onClick={resetWizard}
-                className="rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-1.5 text-xs font-bold text-rose-600 transition hover:bg-rose-100"
+                onClick={() => applyPreset(preset.context)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-left transition hover:border-blue-400 hover:bg-blue-50/40"
               >
-                Reiniciar desde cero
+                <span className="block text-[10px] font-extrabold uppercase text-blue-600">
+                  {preset.badge}
+                </span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-900">
+                  {preset.shortTitle}
+                </span>
               </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Dynamic Stepper Navigation */}
+        <div className="mt-6 grid grid-cols-3 gap-2">
+          {STEP_TITLES.map((title, idx) => (
+            <button
+              key={title}
+              type="button"
+              onClick={() => setStep(idx)}
+              className={
+                "rounded-2xl border px-4 py-3 text-left text-xs font-bold transition " +
+                (step === idx
+                  ? "border-blue-600 bg-blue-600 text-white shadow-xs"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-300")
+              }
+            >
+              {title}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+          {/* Left Form Card */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+            {step === 0 && (
+              <div className="space-y-5">
+                <div className="border-b border-slate-100 pb-3">
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Paso 1: Identificación RUC, Contribuyente y Régimen Actual
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Marca si cada dato fue verificado en tu Ficha / Consulta RUC
+                    de SUNAT o si es declarado por ti.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="ruc-input"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Número de RUC (11 dígitos)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("ruc")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.ruc === "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.ruc === "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado SUNAT"
+                          : "✎ Declarado usuario"}
+                      </button>
+                    </div>
+                    <input
+                      id="ruc-input"
+                      type="text"
+                      value={ruc}
+                      onChange={(e) => handleRucChange(e.target.value)}
+                      placeholder="Ej. 10428519302 o 20608419257"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {ruc.length === 11
+                        ? `Último dígito de RUC: «${ruc[10]}» (usado para tu cronograma SUNAT).`
+                        : "Ingresa los 11 dígitos del RUC del restaurante."}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="name-input"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Nombre comercial del restaurante
+                    </label>
+                    <input
+                      id="name-input"
+                      type="text"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Ej. Restaurante El Cumbe"
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Nombre con el que atiendes al público en Cajamarca.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">
+                        Tipo de contribuyente
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("personType")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.personType ===
+                          "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.personType === "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado SUNAT"
+                          : "✎ Declarado usuario"}
+                      </button>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPersonType("PERSONA_NATURAL")}
+                        className={
+                          "rounded-xl border p-2.5 text-left text-xs font-bold transition " +
+                          (personType === "PERSONA_NATURAL"
+                            ? "border-blue-600 bg-blue-50 text-blue-800"
+                            : "border-slate-200 text-slate-600")
+                        }
+                      >
+                        Persona Natural (RUC 10)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPersonType("PERSONA_JURIDICA")}
+                        className={
+                          "rounded-xl border p-2.5 text-left text-xs font-bold transition " +
+                          (personType === "PERSONA_JURIDICA"
+                            ? "border-blue-600 bg-blue-50 text-blue-800"
+                            : "border-slate-200 text-slate-600")
+                        }
+                      >
+                        Persona Jurídica (RUC 20)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="regime-select"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Régimen tributario actual
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("currentRegime")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.currentRegime ===
+                          "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.currentRegime ===
+                        "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado SUNAT"
+                          : "✎ Declarado usuario"}
+                      </button>
+                    </div>
+                    <select
+                      id="regime-select"
+                      value={currentRegime}
+                      onChange={(e) =>
+                        setCurrentRegime(
+                          e.target.value as TaxRegimeCode | "SIN_REGIMEN"
+                        )
+                      }
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    >
+                      <option value="NRUS">Nuevo RUS (NRUS)</option>
+                      <option value="RER">
+                        Régimen Especial de Renta (RER)
+                      </option>
+                      <option value="RMT">
+                        Régimen MYPE Tributario (RMT)
+                      </option>
+                      <option value="RG">Régimen General (RG)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="specialty-select"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Actividad económica gastronómica (CIIU)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("ciiu")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.ciiu === "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.ciiu === "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado SUNAT"
+                          : "✎ Declarado usuario"}
+                      </button>
+                    </div>
+                    <select
+                      id="specialty-select"
+                      value={restaurantSpecialty}
+                      onChange={(e) => {
+                        const val = e.target.value as RestaurantActivityCode;
+                        setRestaurantSpecialty(val);
+                        setCiiu(val === "CATERING_EVENTOS" ? "5621" : "5610");
+                      }}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    >
+                      <option value="RESTAURANTE_MENU">
+                        CIIU 5610 · Restaurante de menú y platos a la carta
+                      </option>
+                      <option value="POLLERIA_PARRILLERIA">
+                        CIIU 5610 · Pollería, parrillería o chifa
+                      </option>
+                      <option value="PICANTERIA_TRADICIONAL">
+                        CIIU 5610 · Picantería, cevichería o comida típica
+                      </option>
+                      <option value="CAFETERIA_FUENTE_SODA">
+                        CIIU 5610 · Cafetería, juguería o sanguchería
+                      </option>
+                      <option value="CATERING_EVENTOS">
+                        CIIU 5621 · Suministro de comidas por encargo / Catering
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="district-select"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Distrito en Cajamarca
+                    </label>
+                    <select
+                      id="district-select"
+                      value={district}
+                      onChange={(e) => setDistrict(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    >
+                      <option value="Cajamarca">Cajamarca (Cercado)</option>
+                      <option value="Los Baños del Inca">
+                        Los Baños del Inca
+                      </option>
+                      <option value="Llacanora">Llacanora</option>
+                      <option value="Jesús">Jesús</option>
+                      <option value="Namora">Namora</option>
+                      <option value="Magdalena">Magdalena</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                  >
+                    Siguiente: Ventas, Compras y Comprobantes →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
+              <div className="space-y-5">
+                <div className="border-b border-slate-100 pb-3">
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Paso 2: Ventas, Compras de Insumos y Comprobantes
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Distingue tus compras con Factura (que dan crédito fiscal de
+                    IGV) de las compras con Boleta o en mercado.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="monthly-sales"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Ventas brutas mensuales (S/)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("monthlyRevenue")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.monthlyRevenue ===
+                          "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.monthlyRevenue ===
+                        "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado PDT/Libros"
+                          : "✎ Declarado usuario"}
+                      </button>
+                    </div>
+                    <input
+                      id="monthly-sales"
+                      type="number"
+                      min={0}
+                      value={monthlyRevenue}
+                      onChange={(e) => handleMonthlySalesChange(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Tope mensual NRUS: S/ 8,000.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="annual-sales"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Ventas brutas anuales proyectadas (S/)
+                    </label>
+                    <input
+                      id="annual-sales"
+                      type="number"
+                      min={0}
+                      value={annualRevenue}
+                      onChange={(e) => setAnnualRevenue(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Tope anual NRUS: S/ 96,000 · RER: S/ 525,000 · RMT: 1,700
+                      UIT.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="purchases-invoice"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Compras mensuales CON Factura (S/)
+                      </label>
+                    </div>
+                    <input
+                      id="purchases-invoice"
+                      type="number"
+                      min={0}
+                      value={monthlyPurchasesWithInvoice}
+                      onChange={(e) =>
+                        setMonthlyPurchasesWithInvoice(e.target.value)
+                      }
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-emerald-700">
+                      ✓ Otorga crédito fiscal de IGV (18%).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="purchases-no-invoice"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Compras mensuales SIN Factura / Boleta (S/)
+                    </label>
+                    <input
+                      id="purchases-no-invoice"
+                      type="number"
+                      min={0}
+                      value={monthlyPurchasesWithoutInvoice}
+                      onChange={(e) =>
+                        setMonthlyPurchasesWithoutInvoice(e.target.value)
+                      }
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-amber-700">
+                      No otorga crédito fiscal de IGV.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="operating-expenses"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Otros gastos operativos mensuales (S/)
+                    </label>
+                    <input
+                      id="operating-expenses"
+                      type="number"
+                      min={0}
+                      value={monthlyOperatingExpenses}
+                      onChange={(e) =>
+                        setMonthlyOperatingExpenses(e.target.value)
+                      }
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Planilla, alquiler formal y servicios (deducibles en RMT/RG).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <span className="block text-xs font-bold text-slate-700">
+                      ¿Tu restaurante necesita emitir Facturas a empresas o
+                      instituciones?
+                    </span>
+                    <div className="mt-1.5 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNeedsFacturas(false)}
+                        className={
+                          "rounded-xl border p-2.5 text-xs font-bold transition " +
+                          (!needsFacturas
+                            ? "border-blue-600 bg-blue-50 text-blue-800"
+                            : "border-slate-200 text-slate-600")
+                        }
+                      >
+                        No, solo Boletas de Venta
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNeedsFacturas(true);
+                          if (!emittedReceipts.includes("FACTURA")) {
+                            setEmittedReceipts([...emittedReceipts, "FACTURA"]);
+                          }
+                        }}
+                        className={
+                          "rounded-xl border p-2.5 text-xs font-bold transition " +
+                          (needsFacturas
+                            ? "border-blue-600 bg-blue-50 text-blue-800"
+                            : "border-slate-200 text-slate-600")
+                        }
+                      >
+                        Sí, necesita emitir Facturas
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-xs font-bold text-slate-700">
+                      Comprobantes utilizados en el restaurante
+                    </span>
+                    <div className="mt-1.5 flex flex-wrap gap-2">
+                      {(
+                        [
+                          { code: "BOLETA", label: "Boleta de Venta" },
+                          { code: "FACTURA", label: "Factura" },
+                          { code: "TICKET", label: "Ticket POS" },
+                          { code: "NOTA_CREDITO", label: "Nota de Crédito" },
+                        ] as const
+                      ).map((item) => (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={() => toggleReceipt(item.code)}
+                          className={
+                            "rounded-lg border px-3 py-1.5 text-xs font-bold transition " +
+                            (emittedReceipts.includes(item.code)
+                              ? "border-blue-600 bg-blue-50 text-blue-800"
+                              : "border-slate-200 text-slate-600")
+                          }
+                        >
+                          {emittedReceipts.includes(item.code) ? "✓ " : ""}
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep(0)}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    ← Anterior
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                  >
+                    Siguiente: Locales, Personal y Activos →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-5">
+                <div className="border-b border-slate-100 pb-3">
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Paso 3: Establecimientos, Trabajadores por Turno y Activos
+                    Fijos
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Estos datos son obligatorios para verificar las restricciones
+                    del Nuevo RUS y del Régimen Especial (RER).
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label
+                      htmlFor="establishments-input"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Número de establecimientos
+                    </label>
+                    <input
+                      id="establishments-input"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={establishmentCount}
+                      onChange={(e) => setEstablishmentCount(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      NRUS permite máximo 1 local.
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="workers-shift"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Trabajadores por turno
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("employees")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.employees === "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.employees === "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado PLAME"
+                          : "✎ Declarado"}
+                      </button>
+                    </div>
+                    <input
+                      id="workers-shift"
+                      type="number"
+                      min={0}
+                      max={200}
+                      value={employeesPerShift}
+                      onChange={(e) => setEmployeesPerShift(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      RER permite máximo 10 por turno.
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="fixed-assets"
+                        className="text-xs font-bold text-slate-700"
+                      >
+                        Valor activos fijos (S/)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleOrigin("fixedAssetsValue")}
+                        className={
+                          "rounded-md px-2 py-0.5 text-[10px] font-bold " +
+                          (dataOrigins.fixedAssetsValue ===
+                          "VERIFICADO_FUENTE_OFICIAL"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800")
+                        }
+                      >
+                        {dataOrigins.fixedAssetsValue ===
+                        "VERIFICADO_FUENTE_OFICIAL"
+                          ? "✓ Verificado"
+                          : "✎ Declarado"}
+                      </button>
+                    </div>
+                    <input
+                      id="fixed-assets"
+                      type="number"
+                      min={0}
+                      value={fixedAssetsValue}
+                      onChange={(e) => setFixedAssetsValue(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Hornos, frío, muebles (sin predios/vehículos).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <span className="text-xs font-bold text-slate-800">
+                    Condiciones adicionales de exclusión del RMT (D. Leg. N.°
+                    1269):
+                  </span>
+                  <div className="mt-2.5 space-y-2 text-xs text-slate-700">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={hasCorporateLinkageOverLimit}
+                        onChange={(e) =>
+                          setHasCorporateLinkageOverLimit(e.target.checked)
+                        }
+                        className="rounded border-slate-300 accent-blue-600"
+                      />
+                      <span>
+                        ¿Tiene vinculación económica con otras empresas cuyos
+                        ingresos conjuntos superen las 1,700 UIT?
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isForeignBranch}
+                        onChange={(e) => setIsForeignBranch(e.target.checked)}
+                        className="rounded border-slate-300 accent-blue-600"
+                      />
+                      <span>
+                        ¿Es sucursal o establecimiento permanente de una empresa
+                        constituida en el exterior?
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    ← Anterior
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={handleSaveAndEvaluate}
+                    className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {saving
+                      ? "Guardando ficha..."
+                      : "Guardar ficha e ir a «Mi diagnóstico» →"}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
-          {/* 5-Section Clickable Visual Stepper */}
-          <ol aria-label="Progreso del cuestionario" className="mt-5 grid grid-cols-5 gap-2">
-            {sectionNames.map((name, index) => {
-              const active = index === section;
-              const done = index < section;
-              const stepIcons = ["🏢", "📍", "💰", "📋", "✅"];
-              return (
-                <li key={name}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (index <= section || Object.keys(data).length > 0) {
-                        setSection(index);
-                        setPosition(0);
-                      }
-                    }}
-                    className={
-                      "flex w-full flex-col items-center gap-1.5 rounded-2xl border p-2.5 text-center transition " +
-                      (active
-                        ? "border-blue-200 bg-blue-50/80 text-blue-700 shadow-2xs"
-                        : done
-                        ? "border-emerald-100 bg-emerald-50/40 text-emerald-800 hover:bg-emerald-50"
-                        : "border-transparent text-slate-500 hover:bg-slate-50")
-                    }
-                  >
+          {/* Right Live Preview Card */}
+          <aside className="space-y-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                Vista previa en tiempo real
+              </span>
+              <h3 className="mt-1 text-base font-extrabold text-slate-900">
+                {currentContext.businessName}
+              </h3>
+              <p className="text-xs text-slate-500">
+                RUC: {currentContext.ruc || "Sin registrar"} · CIIU{" "}
+                {currentContext.ciiu}
+              </p>
+
+              {liveEval.currentRegimeDiagnostic && (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      Régimen actual: {liveEval.currentRegimeDiagnostic.currentRegime}
+                    </span>
                     <span
                       className={
-                        "grid h-8 w-8 place-items-center rounded-xl text-xs font-extrabold " +
-                        (done
-                          ? "bg-emerald-500 text-white"
-                          : active
-                          ? "bg-blue-600 text-white"
-                          : "bg-slate-100 text-slate-500")
+                        "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                        (liveEval.currentRegimeDiagnostic.status ===
+                        "COMPATIBLE"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : liveEval.currentRegimeDiagnostic.status ===
+                              "INCOMPATIBLE"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800")
                       }
                     >
-                      {done ? "✓" : stepIcons[index]}
+                      {liveEval.currentRegimeDiagnostic.status}
                     </span>
-                    <span className="hidden text-xs font-bold sm:block">{name}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+                  </div>
+                  <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                    {liveEval.currentRegimeDiagnostic.summary}
+                  </p>
+                </div>
+              )}
 
-          {section < 4 ? (
-            <div className="mt-6 border-t border-slate-100 pt-6">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-                <span>
-                  Sección {section + 1} de 5 · Pregunta {position + 1} de {current.length}
+              <div className="mt-4 space-y-2">
+                <span className="block text-xs font-bold text-slate-700">
+                  Evaluación de los 4 regímenes tributarios:
                 </span>
-                <span>{Math.round(((position + 1) / current.length) * 100)}% de la sección</span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-blue-600 transition-all"
-                  style={{ width: ((position + 1) / current.length) * 100 + "%" }}
-                />
-              </div>
-
-              <div className="mt-6">
-                <h1 className="text-2xl font-extrabold leading-snug text-slate-900 sm:text-3xl">{q?.title}</h1>
-                <p className="mt-1.5 text-sm text-slate-500">
-                  {q?.help || "Selecciona la opción que mejor describa tu escenario actual."}
-                </p>
-              </div>
-
-              <div className="mt-6">{q && <QuestionInput key={q.id} question={q} data={data} setValue={setValue} />}</div>
-
-              <div className="mt-8 flex items-center justify-between gap-4 border-t border-slate-100 pt-5">
-                <button
-                  type="button"
-                  onClick={() => move(-1)}
-                  disabled={section === 0 && position === 0}
-                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
-                >
-                  ← Anterior
-                </button>
-                <div className="flex items-center gap-2">
-                  {Object.keys(data).length >= 5 && (
-                    <button
-                      type="button"
-                      onClick={() => setSection(4)}
-                      className="rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-500 hover:text-blue-600"
+                {liveEval.taxRecommendations.map((rec) => (
+                  <div
+                    key={rec.regime}
+                    className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs"
+                  >
+                    <span className="font-bold text-slate-800">{rec.name}</span>
+                    <span
+                      className={
+                        "rounded-full px-2.5 py-0.5 text-[10px] font-extrabold " +
+                        (rec.status === "COMPATIBLE"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : rec.status === "INCOMPATIBLE"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800")
+                      }
                     >
-                      Ir al resumen →
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => move(1)}
-                    disabled={!canContinue}
-                    className="rounded-xl bg-blue-600 px-7 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-600/15 transition hover:bg-blue-700 disabled:opacity-40"
-                  >
-                    Siguiente →
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-6 border-t border-slate-100 pt-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Paso 5 de 5 · Diagnóstico preliminar</span>
-                  <h1 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">Resumen de tu evaluación</h1>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={finish}
-                  className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {busy ? "Generando ruta…" : "Abrir mi ruta y simulador SUNAT →"}
-                </button>
-              </div>
-
-              <div className="mt-5 grid gap-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 sm:grid-cols-2">
-                <div className="rounded-xl bg-white p-4 shadow-2xs">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Preselección tributaria</span>
-                  <p className="mt-1 text-lg font-extrabold text-slate-900">{previewTax.title}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-600">{previewTax.reason}</p>
-                </div>
-                <div className="rounded-xl bg-white p-4 shadow-2xs">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Ruta de formalización</span>
-                  <p className="mt-1 text-lg font-extrabold text-slate-900">
-                    {previewSteps.length} trámites y requisitos detectados
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    Haz clic en cualquier dato de abajo si deseas corregirlo antes de abrir el panel completo.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                {summary.map(([label, val, qId]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => jumpToQuestion(qId)}
-                    className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 text-left transition hover:border-blue-400 hover:bg-white"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
-                      <span className="text-[11px] font-bold text-blue-600 opacity-70 group-hover:opacity-100">Editar ✎</span>
-                    </div>
-                    <p className="mt-1 text-xs font-bold text-slate-800">{val || "Sin especificar"}</p>
-                  </button>
+                      {rec.status}
+                    </span>
+                  </div>
                 ))}
               </div>
 
-              <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-slate-100 pt-5">
-                <button
-                  type="button"
-                  onClick={() => move(-1)}
-                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  ← Volver a preguntas
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={finish}
-                  className="rounded-xl bg-blue-600 px-7 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {busy ? "Preparando…" : "Ver mi ruta y simulador tributario →"}
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSaveAndEvaluate}
+                className="mt-4 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+              >
+                Ver diagnóstico completo y simulador →
+              </button>
             </div>
-          )}
+          </aside>
         </div>
       </main>
     </div>

@@ -4,48 +4,51 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { ACTIVE_ACCOUNT_KEY } from "@/lib/account-storage";
+import { UIT_2026 } from "@/lib/tax-simulator";
 
-const steps = [
+const thesisObjectives = [
   {
-    num: "01",
-    icon: "👤",
-    title: "Crea tu cuenta gratuita",
-    desc: "Regístrate en segundos para que tus respuestas, diagnóstico y lista de trámites queden guardados en tu panel personal.",
+    code: "OE1 · Comprensión Tributaria",
+    icon: "📘",
+    title: "Comprende tu régimen actual y tus obligaciones",
+    desc: "Traduce la normativa oficial de SUNAT a lenguaje sencillo para propietarios y administradores de restaurantes formalizados en Cajamarca.",
   },
   {
-    num: "02",
-    icon: "📝",
-    title: "Responde el cuestionario guiado",
-    desc: "Indica tu rubro, ubicación, proyección de ingresos y forma de trabajo con preguntas sencillas y sin tecnicismos.",
+    code: "OE2 · Evaluación de Alternativas",
+    icon: "⚖️",
+    title: "Evalúa regímenes legalmente compatibles",
+    desc: "Verifica con reglas trazables si tu restaurante cumple los requisitos de Nuevo RUS, RER, RMT o Régimen General, detectando incompatibilidades y simulando impuestos.",
   },
   {
-    num: "03",
-    icon: "📊",
-    title: "Recibe tu régimen y ruta visual",
-    desc: "Obtén tu recomendación tributaria explicada, simula tus impuestos mensuales y sigue tu checklist de formalización paso a paso.",
+    code: "OE3 · Organización del Cumplimiento",
+    icon: "📅",
+    title: "Organiza declaraciones, comprobantes y vencimientos",
+    desc: "Consulta el cronograma oficial de SUNAT según el último dígito de tu RUC, prepara tus documentos mensuales y descarga tu reporte de evaluación en PDF.",
   },
 ];
 
 const faqs = [
   {
-    q: "¿Necesito saber mi código CIIU o tener contador para empezar?",
-    a: "No. Solo describes tu actividad con tus propias palabras y el sistema te sugiere el código CIIU referencial, el régimen compatible y los pasos en lenguaje sencillo.",
+    q: "¿Por qué este sistema está dedicado exclusivamente a restaurantes formalizados de Cajamarca?",
+    a: "Porque las reglas de comprobantes, compras de insumos perecibles, límites de trabajadores por turno (en cocina y salón), activos fijos gastronómicos y obligaciones tributarias requieren un diagnóstico especializado en el sector de restaurantes (CIIU 5610 / 5621).",
   },
   {
-    q: "¿Qué ocurre si mi negocio aún es una idea y todavía no tengo ventas?",
-    a: "En el cuestionario podrás ingresar un estimado mensual aproximado o usar la calculadora por producto/servicio para proyectar tus ingresos antes de inscribirte en SUNAT.",
+    q: "¿El sistema solicita mi Clave SOL o contraseñas de SUNAT?",
+    a: "Nunca. Por seguridad y privacidad, Crea jamás solicita tu Clave SOL. La plataforma distingue claramente entre los datos verificados en fuentes oficiales públicas y los datos operativos declarados por el usuario.",
   },
   {
-    q: "¿Por qué necesito iniciar sesión para hacer el cuestionario?",
-    a: "Para que tu diagnóstico tributario y el progreso de tus trámites (RUC, SUNARP, Licencia Municipal, ITSE) queden guardados en tu panel personal y puedas retomarlos cuando quieras.",
+    q: "¿El régimen con menor pago estimado mensual es siempre el mejor para mi restaurante?",
+    a: "No necesariamente. Primero debe verificarse que el régimen sea legalmente compatible con tu tipo de contribuyente (RUC 10 o RUC 20), número de locales, emisión de facturas y trabajadores por turno. Además, los pagos son estimaciones orientativas que dependen de tus facturas de compras y gastos sustentados.",
   },
 ];
 
 export default function Home() {
-  const [sales, setSales] = useState<number>(4500);
-  const [purchases, setPurchases] = useState<number>(1800);
-  const [needsInvoice, setNeedsInvoice] = useState<boolean>(false);
+  const [sales, setSales] = useState<number>(12000);
+  const [purchasesWithInvoice, setPurchasesWithInvoice] = useState<number>(6500);
+  const [needsInvoice, setNeedsInvoice] = useState<boolean>(true);
   const [isCompany, setIsCompany] = useState<boolean>(false);
+  const [workersPerShift, setWorkersPerShift] = useState<number>(4);
+  const [establishments, setEstablishments] = useState<number>(1);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
   useEffect(() => {
@@ -58,47 +61,40 @@ export default function Home() {
   }, []);
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.max(0, Math.round(n)));
+    new Intl.NumberFormat("es-PE", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.max(0, Math.round(n)));
 
-  // Self-contained live tax calculations right on the landing page
   const netSales = sales / 1.18;
-  const netPurchases = purchases / 1.18;
-  const igvPayable = Math.max(0, (sales - netSales) - (purchases - netPurchases));
+  const netPurchases = purchasesWithInvoice / 1.18;
+  const igvPayable = Math.max(0, sales - netSales - (purchasesWithInvoice - netPurchases));
 
-  const nrusCompatible = !isCompany && !needsInvoice && sales <= 8000 && purchases <= 8000;
-  const nrusQuota = sales <= 5000 && purchases <= 5000 ? 20 : 50;
-  const rerCompatible = sales * 12 <= 525000 && purchases * 12 <= 525000;
-  const rmtCompatible = sales * 12 <= 1700 * 5500;
+  const nrusCompatible =
+    !isCompany &&
+    !needsInvoice &&
+    establishments === 1 &&
+    sales <= 8000 &&
+    purchasesWithInvoice <= 8000;
+  const nrusQuota = sales <= 5000 && purchasesWithInvoice <= 5000 ? 20 : 50;
+
+  const rerCompatible =
+    sales * 12 <= 525000 &&
+    purchasesWithInvoice * 12 <= 525000 &&
+    workersPerShift <= 10;
+
+  const rmtCompatible = netSales * 12 <= 1700 * UIT_2026;
 
   const rerMonthlyTotal = netSales * 0.015 + igvPayable;
   const rmtMonthlyTotal = netSales * 0.01 + igvPayable;
   const rgMonthlyTotal = netSales * 0.015 + igvPayable;
 
-  const recommended = nrusCompatible
-    ? {
-        code: "Nuevo RUS (NRUS)",
-        badge: sales <= 5000 && purchases <= 5000 ? "Categoría 1 · S/ 20 al mes" : "Categoría 2 · S/ 50 al mes",
-        reason:
-          "Como operarás como Persona Natural, emitirás solo boleta de venta y tus ingresos/compras no superan S/ 8,000 al mes, el Nuevo RUS es la opción más simple: pagas una única cuota fija y no llevas libros contables.",
-      }
-    : rerCompatible
-    ? {
-        code: "Régimen Especial de Renta (RER)",
-        badge: `Pago estimado: S/ ${fmt(rerMonthlyTotal)} / mes`,
-        reason: isCompany
-          ? "Al operar como Persona Jurídica (empresa), no aplica el Nuevo RUS. Por tu nivel de ventas y compras (menores a S/ 525,000 al año), puedes acogerte al RER o al RMT emitiendo facturas y boletas."
-          : needsInvoice
-          ? "Como necesitas emitir facturas a tus clientes, el Nuevo RUS queda descartado. El RER te permite emitir facturas con un pago definitivo mensual (1.5% Renta + IGV) sin Declaración Anual."
-          : "Tus ventas o compras superan los S/ 8,000 mensuales del Nuevo RUS, pero están dentro del tope del RER (hasta S/ 43,750/mes promedio).",
-      }
-    : {
-        code: "Régimen MYPE Tributario (RMT)",
-        badge: `Pago estimado: S/ ${fmt(rmtMonthlyTotal)} / mes`,
-        reason:
-          "Por el volumen proyectado de ingresos o compras, el RMT te permite operar sin exclusiones de giro, emitiendo facturas y boletas con pagos a cuenta del 1% mensual y regularización anual según tu utilidad.",
-      };
-
-  const startEvaluationHref = isLoggedIn ? "/negocios/nuevo" : "/registro";
+  const compatibleList = [
+    nrusCompatible ? "Nuevo RUS (NRUS)" : null,
+    rerCompatible ? "Régimen Especial (RER)" : null,
+    rmtCompatible ? "Régimen MYPE Tributario (RMT)" : null,
+    "Régimen General (RG)",
+  ].filter(Boolean) as string[];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
@@ -106,141 +102,220 @@ export default function Home() {
 
       <main>
         {/* Hero Section */}
-        <section id="simulador" className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-8 lg:pt-12">
-          <div className="grid items-start gap-10 lg:grid-cols-[1fr_1.1fr]">
-            {/* Left Column: Value Proposition */}
-            <div className="lg:pt-4">
+        <section
+          id="simulador"
+          className="mx-auto max-w-7xl px-4 pb-14 pt-8 sm:px-8 lg:pt-10"
+        >
+          <div className="grid items-start gap-10 lg:grid-cols-[1fr_1.15fr]">
+            {/* Left Column */}
+            <div className="lg:pt-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700">
                 <span className="h-2 w-2 rounded-full bg-blue-600" />
-                Orientación tributaria y formalización empresarial
+                Exclusivo para restaurantes formalizados de Cajamarca · 2026
               </div>
 
-              <h1 className="mt-5 text-4xl font-extrabold leading-[1.12] tracking-tight text-slate-900 sm:text-5xl">
-                Descubre qué régimen tributario te conviene y{" "}
+              <h1 className="mt-4 text-3xl font-extrabold leading-[1.15] tracking-tight text-slate-900 sm:text-5xl">
+                Sistema web inteligente de{" "}
                 <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  cómo formalizarte
-                </span>
+                  orientación, diagnóstico y organización tributaria
+                </span>{" "}
+                para restaurantes
               </h1>
 
-              <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-                Comprende las reglas de SUNAT sin complicaciones. Simula tus pagos mensuales aquí mismo o inicia tu evaluación personalizada para obtener los trámites exactos de tu negocio.
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base">
+                Registra las características de tu restaurante, evalúa si cumples
+                los requisitos de tu régimen actual en SUNAT, conoce alternativas
+                legalmente compatibles, simula tus impuestos con transparencia,
+                organiza tus vencimientos y recibe orientación con{" "}
+                <strong>Crea IA</strong>.
               </p>
 
-              <div className="mt-7 flex flex-wrap items-center gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Link
-                  href={startEvaluationHref}
-                  className="inline-flex items-center gap-2.5 rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700 sm:text-base"
+                  href="/negocios/nuevo"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
                 >
-                  {isLoggedIn ? "Ir al cuestionario de mi negocio" : "Crear cuenta y evaluar mi negocio"}
-                  <span aria-hidden="true">→</span>
+                  Registrar o actualizar «Mi restaurante» →
                 </Link>
-                {!isLoggedIn && (
-                  <Link
-                    href="/ingresar"
-                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 sm:text-base"
-                  >
-                    Ya tengo cuenta
-                  </Link>
-                )}
+                <Link
+                  href="/negocios?seccion=diagnostico"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
+                >
+                  Ver diagnóstico y módulos
+                </Link>
               </div>
 
-              {/* Visual Feature Highlights */}
-              <div className="mt-9 grid gap-3 sm:grid-cols-2">
-                <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-lg">⚖️</span>
-                  <div>
-                    <h2 className="text-sm font-extrabold text-slate-900">4 Regímenes SUNAT</h2>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                      Compara Nuevo RUS, RER, RMT y Régimen General con topes y requisitos claros.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-lg">🗺️</span>
-                  <div>
-                    <h2 className="text-sm font-extrabold text-slate-900">Ruta según tu rubro</h2>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                      Checklist paso a paso de RUC, SUNARP, Licencia Municipal, ITSE y Planilla.
-                    </p>
-                  </div>
-                </div>
+              {/* Quick Access to the 8 Modules */}
+              <div className="mt-8 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {[
+                  { icon: "🍽️", label: "Mi restaurante", href: "/negocios/nuevo" },
+                  {
+                    icon: "🩺",
+                    label: "Mi diagnóstico",
+                    href: "/negocios?seccion=diagnostico",
+                  },
+                  {
+                    icon: "🧮",
+                    label: "Simulador",
+                    href: "/negocios?seccion=simulador",
+                  },
+                  {
+                    icon: "📅",
+                    label: "Mis obligaciones",
+                    href: "/negocios?seccion=obligaciones",
+                  },
+                  {
+                    icon: "🤖",
+                    label: "Crea IA",
+                    href: "/negocios?seccion=crea-ia",
+                  },
+                  {
+                    icon: "📚",
+                    label: "Centro orientación",
+                    href: "/negocios?seccion=orientacion",
+                  },
+                  {
+                    icon: "📄",
+                    label: "Reporte PDF",
+                    href: "/negocios?seccion=reportes",
+                  },
+                  {
+                    icon: "🎓",
+                    label: "Investigación (36)",
+                    href: "/investigacion",
+                  },
+                ].map((mod) => (
+                  <Link
+                    key={mod.label}
+                    href={mod.href}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white p-2.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-blue-300 hover:text-blue-600"
+                  >
+                    <span className="text-base">{mod.icon}</span>
+                    <span className="truncate">{mod.label}</span>
+                  </Link>
+                ))}
               </div>
             </div>
 
-            {/* Right Column: Self-Contained Interactive Tax Calculator */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] sm:p-7">
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
+            {/* Right Column: Interactive Restaurant Tax Preview */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
-                    ⚡ Calculadora interactiva instantánea
+                    🍽️ Vista rápida para restaurantes (CIIU 5610)
                   </span>
                   <h2 className="text-lg font-extrabold text-slate-900">
-                    Simula tu régimen tributario en vivo
+                    Pre-evaluación de compatibilidad y simulador
                   </h2>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">
-                  Cálculo referencial
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800">
+                  Estimación orientativa
                 </span>
               </div>
 
-              {/* Sliders & Toggles */}
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-3.5">
+              <div className="mt-4 space-y-3.5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-3">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-700">Ventas al mes</span>
-                      <span className="font-extrabold text-blue-600">S/ {fmt(sales)}</span>
+                      <span className="font-bold text-slate-700">
+                        Ventas mensuales del restaurante
+                      </span>
+                      <span className="font-extrabold text-blue-600">
+                        S/ {fmt(sales)}
+                      </span>
                     </div>
                     <input
                       type="range"
-                      min={1000}
-                      max={45000}
+                      min={2000}
+                      max={60000}
                       step={500}
                       value={sales}
                       onChange={(e) => setSales(Number(e.target.value))}
-                      aria-label="Ventas mensuales estimadas"
+                      aria-label="Ventas mensuales del restaurante"
                       className="mt-2 w-full cursor-pointer accent-blue-600"
                     />
                     <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                      <span>S/ 1,000</span>
+                      <span>S/ 2,000</span>
                       <span>Tope NRUS: S/ 8,000</span>
-                      <span>S/ 45,000</span>
+                      <span>S/ 60,000</span>
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-50 p-3.5">
+                  <div className="rounded-2xl bg-slate-50 p-3">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-700">Compras con factura</span>
-                      <span className="font-extrabold text-emerald-700">S/ {fmt(purchases)}</span>
+                      <span className="font-bold text-slate-700">
+                        Compras de insumos con Factura
+                      </span>
+                      <span className="font-extrabold text-emerald-700">
+                        S/ {fmt(purchasesWithInvoice)}
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={0}
-                      max={35000}
+                      max={45000}
                       step={500}
-                      value={purchases}
-                      onChange={(e) => setPurchases(Number(e.target.value))}
+                      value={purchasesWithInvoice}
+                      onChange={(e) =>
+                        setPurchasesWithInvoice(Number(e.target.value))
+                      }
                       aria-label="Compras mensuales con factura"
                       className="mt-2 w-full cursor-pointer accent-blue-600"
                     />
                     <div className="mt-1 flex justify-between text-[10px] text-slate-400">
                       <span>S/ 0</span>
-                      <span> Reduce IGV</span>
-                      <span>S/ 35,000</span>
+                      <span>Otorga crédito fiscal IGV</span>
+                      <span>S/ 45,000</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div>
-                    <span className="block text-xs font-bold text-slate-600">¿Emitirás Factura?</span>
-                    <div className="mt-1.5 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
+                    <span className="block text-[11px] font-bold text-slate-600">
+                      Contribuyente
+                    </span>
+                    <div className="mt-1 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setIsCompany(false)}
+                        className={
+                          "rounded-lg py-1.5 transition " +
+                          (!isCompany
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
+                        }
+                      >
+                        RUC 10
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCompany(true)}
+                        className={
+                          "rounded-lg py-1.5 transition " +
+                          (isCompany
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
+                        }
+                      >
+                        RUC 20
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] font-bold text-slate-600">
+                      ¿Emite Factura?
+                    </span>
+                    <div className="mt-1 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-[11px] font-bold">
                       <button
                         type="button"
                         onClick={() => setNeedsInvoice(false)}
                         className={
-                          "rounded-lg py-2 transition " +
-                          (!needsInvoice ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
+                          "rounded-lg py-1.5 transition " +
+                          (!needsInvoice
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
                         }
                       >
                         Solo Boleta
@@ -249,8 +324,10 @@ export default function Home() {
                         type="button"
                         onClick={() => setNeedsInvoice(true)}
                         className={
-                          "rounded-lg py-2 transition " +
-                          (needsInvoice ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
+                          "rounded-lg py-1.5 transition " +
+                          (needsInvoice
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
                         }
                       >
                         Sí, Factura
@@ -259,72 +336,116 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <span className="block text-xs font-bold text-slate-600">¿Cómo te registrarás?</span>
-                    <div className="mt-1.5 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
+                    <span className="block text-[11px] font-bold text-slate-600">
+                      Trabajadores/turno
+                    </span>
+                    <div className="mt-1 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-[11px] font-bold">
                       <button
                         type="button"
-                        onClick={() => setIsCompany(false)}
+                        onClick={() => setWorkersPerShift(4)}
                         className={
-                          "rounded-lg py-2 transition " +
-                          (!isCompany ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
+                          "rounded-lg py-1.5 transition " +
+                          (workersPerShift <= 10
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
                         }
                       >
-                        P. Natural
+                        ≤ 10
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsCompany(true)}
+                        onClick={() => setWorkersPerShift(12)}
                         className={
-                          "rounded-lg py-2 transition " +
-                          (isCompany ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600")
+                          "rounded-lg py-1.5 transition " +
+                          (workersPerShift > 10
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
                         }
                       >
-                        Empresa
+                        &gt; 10
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] font-bold text-slate-600">
+                      N.° de locales
+                    </span>
+                    <div className="mt-1 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setEstablishments(1)}
+                        className={
+                          "rounded-lg py-1.5 transition " +
+                          (establishments === 1
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
+                        }
+                      >
+                        1 local
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEstablishments(2)}
+                        className={
+                          "rounded-lg py-1.5 transition " +
+                          (establishments > 1
+                            ? "bg-white text-blue-600 shadow-2xs"
+                            : "text-slate-600")
+                        }
+                      >
+                        2+ locales
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Self-Contained Result Breakdown right inside the widget */}
-              <div className="mt-5 rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/40 p-4">
+              {/* Result Box */}
+              <div className="mt-4 rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/30 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
-                      Resultado para tus parámetros
+                      Regímenes legalmente compatibles con estos parámetros
                     </span>
-                    <h3 className="text-lg font-extrabold text-slate-900">{recommended.code}</h3>
+                    <h3 className="text-base font-extrabold text-slate-900">
+                      {compatibleList.join(" · ")}
+                    </h3>
                   </div>
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-800">
-                    {recommended.badge}
-                  </span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-slate-600">{recommended.reason}</p>
 
-                {/* Mini 4-Regime Comparison Grid right inside the card */}
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {/* 4 Regimes Comparison */}
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <div
                     className={
                       "rounded-xl border p-2.5 " +
-                      (nrusCompatible ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-white/80 opacity-60")
+                      (nrusCompatible
+                        ? "border-emerald-200 bg-emerald-50/60"
+                        : "border-rose-200 bg-rose-50/40 opacity-75")
                     }
                   >
                     <div className="flex items-center justify-between text-[11px] font-bold">
                       <span>NRUS</span>
-                      <span className={nrusCompatible ? "text-emerald-700" : "text-rose-600"}>
-                        {nrusCompatible ? "✓ Aplica" : "✕ No"}
+                      <span
+                        className={
+                          nrusCompatible ? "text-emerald-700" : "text-rose-700"
+                        }
+                      >
+                        {nrusCompatible ? "COMPATIBLE" : "INCOMPATIBLE"}
                       </span>
                     </div>
                     <p className="mt-1 text-sm font-extrabold text-slate-900">
-                      {nrusCompatible ? `S/ ${nrusQuota}` : "Excluido"}
+                      {nrusCompatible ? `S/ ${nrusQuota}/mes` : "No aplicable"}
                     </p>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-slate-600">
                       {!nrusCompatible
                         ? isCompany
-                          ? "Solo P. Natural"
+                          ? "Exige Persona Natural"
                           : needsInvoice
-                          ? "No da factura"
-                          : "> S/ 8,000/mes"
+                            ? "Prohíbe emitir Factura"
+                            : establishments > 1
+                              ? "Máx. 1 solo local"
+                              : "Supera S/ 8,000/mes"
                         : "Cuota fija única"}
                     </p>
                   </div>
@@ -332,83 +453,126 @@ export default function Home() {
                   <div
                     className={
                       "rounded-xl border p-2.5 " +
-                      (rerCompatible ? "border-blue-200 bg-white" : "border-slate-200 bg-white/80 opacity-60")
+                      (rerCompatible
+                        ? "border-emerald-200 bg-emerald-50/60"
+                        : "border-rose-200 bg-rose-50/40 opacity-75")
                     }
                   >
                     <div className="flex items-center justify-between text-[11px] font-bold">
                       <span>RER</span>
-                      <span className={rerCompatible ? "text-emerald-700" : "text-rose-600"}>
-                        {rerCompatible ? "✓ Aplica" : "✕ No"}
+                      <span
+                        className={
+                          rerCompatible ? "text-emerald-700" : "text-rose-700"
+                        }
+                      >
+                        {rerCompatible ? "COMPATIBLE" : "INCOMPATIBLE"}
                       </span>
                     </div>
                     <p className="mt-1 text-sm font-extrabold text-slate-900">
-                      {rerCompatible ? `S/ ${fmt(rerMonthlyTotal)}` : "> Tope"}
+                      {rerCompatible
+                        ? `S/ ${fmt(rerMonthlyTotal)}/mes`
+                        : "No aplicable"}
                     </p>
-                    <p className="text-[10px] text-slate-500">1.5% Renta + IGV</p>
+                    <p className="text-[10px] text-slate-600">
+                      {!rerCompatible
+                        ? workersPerShift > 10
+                          ? "Excede 10 trab./turno"
+                          : "Supera S/ 525,000/año"
+                        : "Renta 1.5% + IGV neto"}
+                    </p>
                   </div>
 
                   <div
                     className={
                       "rounded-xl border p-2.5 " +
-                      (rmtCompatible ? "border-blue-200 bg-white" : "border-slate-200 bg-white/80 opacity-60")
+                      (rmtCompatible
+                        ? "border-emerald-200 bg-emerald-50/60"
+                        : "border-rose-200 bg-rose-50/40 opacity-75")
                     }
                   >
                     <div className="flex items-center justify-between text-[11px] font-bold">
                       <span>RMT</span>
-                      <span className="text-emerald-700">✓ Aplica</span>
+                      <span
+                        className={
+                          rmtCompatible ? "text-emerald-700" : "text-rose-700"
+                        }
+                      >
+                        {rmtCompatible ? "COMPATIBLE" : "INCOMPATIBLE"}
+                      </span>
                     </div>
-                    <p className="mt-1 text-sm font-extrabold text-slate-900">S/ {fmt(rmtMonthlyTotal)}</p>
-                    <p className="text-[10px] text-slate-500">1.0% Renta + IGV</p>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      S/ {fmt(rmtMonthlyTotal)}/mes
+                    </p>
+                    <p className="text-[10px] text-slate-600">
+                      Pago a cta. 1% + IGV (+ Renta Anual)
+                    </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-2.5">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5">
                     <div className="flex items-center justify-between text-[11px] font-bold">
                       <span>R. General</span>
-                      <span className="text-emerald-700">✓ Aplica</span>
+                      <span className="text-emerald-700">COMPATIBLE</span>
                     </div>
-                    <p className="mt-1 text-sm font-extrabold text-slate-900">S/ {fmt(rgMonthlyTotal)}</p>
-                    <p className="text-[10px] text-slate-500">1.5% Renta + IGV</p>
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      S/ {fmt(rgMonthlyTotal)}/mes
+                    </p>
+                    <p className="text-[10px] text-slate-600">
+                      Pago a cta. 1.5% + IGV (+ Renta Anual)
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-blue-100 pt-3">
-                  <span className="text-[11px] text-slate-500">
-                    ¿Quieres evaluar las reglas de tu rubro, activos, trabajadores y distrito?
-                  </span>
+                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-[11px] leading-4 text-amber-950">
+                  <strong>Nota metodológica:</strong> Los montos mostrados son
+                  estimaciones orientativas mensuales y no impuestos definitivos.
+                  El régimen con menor pago estimado no es necesariamente el
+                  mejor: evalúa los activos fijos, compras sin factura y gastos
+                  operativos de tu restaurante en el{" "}
                   <Link
-                    href={startEvaluationHref}
-                    className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+                    href="/negocios?seccion=simulador"
+                    className="font-bold underline"
                   >
-                    Hacer diagnóstico de mi negocio →
+                    Comparador y simulador completo
                   </Link>
-                </div>
+                  .
+                </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* How it works: 3 Clear Visual Steps */}
-        <section id="como-funciona" className="border-t border-slate-200/70 bg-white py-14">
+        {/* Thesis Objectives Alignment */}
+        <section className="border-t border-slate-200/70 bg-white py-12">
           <div className="mx-auto max-w-7xl px-4 sm:px-8">
             <div className="text-center">
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Flujo ordenado</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-blue-600">
+                Arquitectura orientada a la gestión tributaria gastronómica
+              </span>
               <h2 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">
-                ¿Cómo funciona la plataforma?
+                Tres dimensiones para fortalecer la gestión tributaria de tu restaurante
               </h2>
             </div>
 
             <div className="mt-8 grid gap-6 md:grid-cols-3">
-              {steps.map((s) => (
+              {thesisObjectives.map((obj) => (
                 <article
-                  key={s.num}
-                  className="relative rounded-3xl border border-slate-200/90 bg-slate-50/50 p-6 transition hover:border-blue-200 hover:bg-white hover:shadow-sm"
+                  key={obj.code}
+                  className="rounded-3xl border border-slate-200/90 bg-slate-50/50 p-6 transition hover:border-blue-200 hover:bg-white hover:shadow-sm"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-2xl">{s.icon}</span>
-                    <span className="text-2xl font-black text-slate-200">{s.num}</span>
+                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-2xl">
+                      {obj.icon}
+                    </span>
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-extrabold text-blue-800">
+                      {obj.code}
+                    </span>
                   </div>
-                  <h3 className="mt-4 text-lg font-extrabold text-slate-900">{s.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.desc}</p>
+                  <h3 className="mt-4 text-base font-extrabold text-slate-900">
+                    {obj.title}
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
+                    {obj.desc}
+                  </p>
                 </article>
               ))}
             </div>
@@ -416,22 +580,26 @@ export default function Home() {
         </section>
 
         {/* FAQ */}
-        <section id="preguntas" className="border-t border-slate-200/70 py-14">
+        <section className="border-t border-slate-200/70 py-12">
           <div className="mx-auto max-w-3xl px-4 sm:px-8">
-            <h2 className="text-center text-2xl font-extrabold text-slate-900 sm:text-3xl">Preguntas frecuentes</h2>
-            <div className="mt-7 space-y-3">
+            <h2 className="text-center text-2xl font-extrabold text-slate-900">
+              Preguntas frecuentes de propietarios y administradores
+            </h2>
+            <div className="mt-6 space-y-3">
               {faqs.map((faq) => (
                 <details
                   key={faq.q}
                   className="group rounded-2xl border border-slate-200 bg-white p-5 transition open:border-blue-200"
                 >
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold text-slate-900 sm:text-base">
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-bold text-slate-900">
                     <span>{faq.q}</span>
                     <span className="ml-4 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-sm text-blue-600 transition group-open:rotate-45 group-open:bg-blue-50">
                       +
                     </span>
                   </summary>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{faq.a}</p>
+                  <p className="mt-3 text-xs leading-relaxed text-slate-600 sm:text-sm">
+                    {faq.a}
+                  </p>
                 </details>
               ))}
             </div>
@@ -446,14 +614,23 @@ export default function Home() {
               C
             </span>
             <span className="font-bold text-slate-800">Crea</span>
-            <span>· Sistema de recomendación tributaria y formalización empresarial</span>
+            <span>
+              · Sistema web inteligente de orientación tributaria para
+              restaurantes formalizados de Cajamarca, 2026
+            </span>
           </div>
-          <div className="flex gap-5 font-semibold text-slate-600">
-            <Link href={startEvaluationHref} className="hover:text-blue-600">
-              Evaluar mi negocio
+          <div className="flex gap-4 font-semibold text-slate-600">
+            <Link href="/negocios/nuevo" className="hover:text-blue-600">
+              Mi restaurante
             </Link>
-            <Link href="/ingresar" className="hover:text-blue-600">
-              Iniciar sesión
+            <Link
+              href="/negocios?seccion=diagnostico"
+              className="hover:text-blue-600"
+            >
+              Diagnóstico
+            </Link>
+            <Link href="/investigacion" className="hover:text-blue-600">
+              Investigación (36)
             </Link>
           </div>
         </div>
