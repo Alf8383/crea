@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, LinkButton, Notice, PageHeading } from "@/components/ui/primitives";
 import { useSession } from "@/features/auth/session";
+import { emptyDraft, toBusinessContext } from "@/features/evaluation/assessment";
 import { SelectField } from "@/features/evaluation/assessment-fields";
 import { useUnfinishedAssessment } from "@/features/evaluation/assessment-entry";
 import { Results } from "@/features/evaluation/results";
@@ -21,17 +22,24 @@ const loadingPanel = () => <p role="status">Cargando sección…</p>;
 const Simulation = dynamic(() => import("./simulation").then((module) => module.Simulation), { loading: loadingPanel });
 const Obligations = dynamic(() => import("./obligations").then((module) => module.Obligations), { loading: loadingPanel });
 const Reports = dynamic(() => import("./reports").then((module) => module.Reports), { loading: loadingPanel });
+const FormalizationRoute = dynamic(() => import("./formalization-route").then((module) => module.FormalizationRoute), { ssr: false, loading: loadingPanel });
+const Examples = dynamic(() => import("./examples").then((module) => module.Examples), { loading: loadingPanel });
 const Assistant = dynamic(() => import("./assistant").then((module) => module.Assistant), { loading: loadingPanel });
 const Guides = dynamic(() => import("./guides").then((module) => module.Guides), { ssr: false, loading: loadingPanel });
 
 const sections = [
   { key: "diagnostico", label: "Diagnóstico", title: "Tu diagnóstico" },
+  { key: "ruta", label: "Formalización", title: "Tu ruta de formalización" },
   { key: "obligaciones", label: "Obligaciones", title: "Organiza tus obligaciones" },
   { key: "simulador", label: "Simulador", title: "Simula tus impuestos" },
   { key: "reportes", label: "Reportes", title: "Tu reporte" },
   { key: "orientacion", label: "Guías y fuentes", title: "Guías y fuentes oficiales" },
+  { key: "ejemplos", label: "Ejemplos", title: "Explora negocios ficticios" },
   { key: "crea-ia", label: "Crea IA", title: "Consulta a Crea IA" },
 ] as const;
+
+const blankScenario = toBusinessContext({ ...emptyDraft, stage: "idea" });
+const blankRecommendations = RuleEngine.recommendTax(blankScenario);
 
 function snapshotFromCloud(item: StoredBusiness): AssessmentSnapshot {
   return {
@@ -53,23 +61,25 @@ function readLegacyAssessment(email?: string | null) {
   }
 }
 
-export function Workspace() {
+export function Workspace({ initialSection = "diagnostico" }: { initialSection?: "diagnostico" | "ruta" } = {}) {
   const session = useSession();
   if (session.loading) return <div className="container-site page-shell"><p role="status">Cargando tu espacio…</p></div>;
-  return <WorkspaceContent key={session.user?.uid ?? "guest"} />;
+  return <WorkspaceContent key={session.user?.uid ?? "guest"} initialSection={initialSection} />;
 }
 
-function WorkspaceContent() {
+function WorkspaceContent({ initialSection }: { initialSection: "diagnostico" | "ruta" }) {
   const router = useRouter();
   const search = useSearchParams();
   const requested = search.get("restaurante");
   const saveIntent = search.get("guardar") === "1";
-  const section = sections.find((item) => item.key === search.get("seccion")) ?? sections[0];
+  const section = sections.find((item) => item.key === (search.get("seccion") ?? initialSection)) ?? sections[0];
   const { user, mode } = useSession();
   const unfinished = useUnfinishedAssessment();
   const uid = user?.uid;
   const ownerEmail = user?.emailVerified ? user.email : undefined;
-  const [assessment, setAssessment] = useState<AssessmentSnapshot | null>(null);
+  const [activeAssessment, setAssessment] = useState<AssessmentSnapshot | null>(null);
+  const [example, setExample] = useState<AssessmentSnapshot | null>(null);
+  const assessment = example ?? activeAssessment;
   const [businesses, setBusinesses] = useState<StoredBusiness[]>([]);
   const [legacy, setLegacy] = useState<BusinessContext | null>(null);
   const [guest, setGuest] = useState<AssessmentSnapshot | null>(null);
@@ -158,6 +168,7 @@ function WorkspaceContent() {
     try {
       saveAssessment(snapshot, uid);
       setAssessment(snapshot);
+      setExample(null);
       setFailure("");
       setFeedback("");
     } catch {
@@ -165,10 +176,14 @@ function WorkspaceContent() {
     }
   }
 
-  async function loadDemo() {
+  async function loadDemo(presetId?: string) {
     try {
       const { DEMO_PRESETS } = await import("@/lib/demo-presets");
-      activate({ id: crypto.randomUUID(), context: DEMO_PRESETS[0].context, date: limaDay(new Date()), demo: true });
+      const preset = DEMO_PRESETS.find(({ id }) => id === presetId) ?? DEMO_PRESETS[0];
+      setExample({ id: "demo-" + preset.id, context: preset.context, date: limaDay(new Date()), demo: true });
+      setFailure("");
+      setFeedback("");
+      router.push(base + "seccion=diagnostico");
     } catch {
       setFailure("No pudimos abrir la demostración.");
     }
@@ -209,15 +224,17 @@ function WorkspaceContent() {
       <PageHeading headingRef={heading} title={!assessment && loaded && section.key === "diagnostico" ? "Mis evaluaciones" : section.title}
         description={assessment ? assessment.context.businessName || undefined : undefined} />
       <nav className="workspace-nav" aria-label="Herramientas de la evaluación">
-        {sections.filter(({ key }) => assessment || key === section.key || key === "diagnostico" || key === "obligaciones" || key === "orientacion")
+        {sections.filter(({ key }) => assessment || key === section.key || key === "diagnostico" || key === "obligaciones" || key === "orientacion" || key === "simulador" || key === "ejemplos")
           .map(({ key, label }) => <Link key={key} href={base + "seccion=" + key} aria-current={section.key === key ? "page" : undefined}>{label}</Link>)}
       </nav>
     </div>
       <div className="min-w-0 space-y-4">
         {failure && <div className="print-hidden"><Notice tone="error">{failure}</Notice>{uid && <Button variant="ghost" onClick={() => setRetry((value) => value + 1)}>Volver a cargar</Button>}</div>}
         {section.key === "orientacion" ? <Guides />
+        : section.key === "ejemplos" ? <Examples open={(id) => void loadDemo(id)} />
         : !loaded ? <p role="status">Cargando evaluación…</p>
         : !assessment && section.key === "obligaciones" ? <Obligations />
+        : !assessment && section.key === "simulador" ? <Simulation context={blankScenario} recommendations={blankRecommendations} />
         : !assessment || !evaluation ? <div className="grid gap-4">
           <EmptyState title="Aún no hay una evaluación abierta">{
             section.key === "simulador" ? "Evalúa tu restaurante para estimar qué pagarías en los regímenes que podrían aplicar."
@@ -225,13 +242,15 @@ function WorkspaceContent() {
                 : section.key === "crea-ia" ? "Abre un diagnóstico para hacer consultas relacionadas con tu restaurante."
                   : "Evalúa tu restaurante para conocer su situación y revisar tus próximos pasos."
           }</EmptyState>
-          {section.key === "simulador" && <Link href="/comparar" className="hero-secondary">Comparar los regímenes</Link>}
+          {section.key === "ruta" && <LinkButton href="/negocios/nuevo" className="justify-self-start">Preparar mi ruta</LinkButton>}
           {guest && !guest.demo && <Card className="grid justify-items-start gap-3 p-5"><h2 className="font-bold">Evaluación de invitado en esta pestaña</h2><Button variant="outline" onClick={() => activate({ ...guest, id: crypto.randomUUID(), saved: false })}>Usar esta evaluación</Button></Card>}
           {legacy && <Card className="grid justify-items-start gap-3 p-5"><h2 className="font-bold">Evaluación de una versión anterior</h2><p className="text-sm text-muted-foreground">Recupera los datos de este navegador y revisa los campos antes de tomar decisiones.</p><Button variant="outline" onClick={() => activate({ id: crypto.randomUUID(), context: legacy, date: limaDay(new Date()) })}>Recuperar evaluación anterior</Button></Card>}
-          {mode === "demo" && <Button variant="outline" className="justify-self-start" onClick={() => void loadDemo()}><FlaskConical aria-hidden="true" /> Abrir un ejemplo de demostración</Button>}
+          {mode === "demo" && <Button variant="outline" className="justify-self-start" onClick={() => router.push(base + "seccion=ejemplos")}><FlaskConical aria-hidden="true" /> Abrir un ejemplo de demostración</Button>}
         </div> : <>
-          {!assessment.demo && assessment.context.assessmentVersion !== 2 && <div className="print-hidden"><Notice tone="warning">Esta evaluación corresponde a una versión anterior. Revisa tus datos con el asistente actualizado.</Notice></div>}
-          {assessment.demo && <div className="print-hidden"><Notice tone="warning">Evaluación de demostración con datos de ejemplo.</Notice></div>}
+          {!assessment.demo && assessment.context.assessmentVersion !== 3 && <div className="print-hidden"><Notice tone="warning">Esta evaluación corresponde a una versión anterior. Revisa tus datos con el asistente actualizado.</Notice></div>}
+          {assessment.demo && <div className="print-hidden flex flex-wrap items-center gap-2"><Notice tone="warning">Simulación con datos ficticios.</Notice>
+            <Button variant="outline" onClick={() => setExample(null)}>Salir del ejemplo</Button>
+          </div>}
           {section.key === "diagnostico" && <Results evaluation={evaluation} context={assessment.context} workspaceHref={base} prepareEdit={assessment.demo ? undefined : edit} />}
           {section.key === "diagnostico" && <div className="print-hidden grid gap-3">
             {!assessment.saved && !assessment.demo && <section ref={saveSection} tabIndex={-1} aria-label="Guardar tu evaluación">
@@ -260,6 +279,7 @@ function WorkspaceContent() {
             {guest && !guest.demo && assessment.saved && <Button variant="ghost" className="justify-self-start" onClick={() => activate({ ...guest, id: crypto.randomUUID(), saved: false })}>Abrir evaluación de invitado de esta pestaña</Button>}
           </div>}
           {section.key === "simulador" && <Simulation key={assessment.id ?? assessment.date} context={assessment.context} recommendations={evaluation.taxRecommendations} />}
+          {section.key === "ruta" && <FormalizationRoute key={assessment.id ?? assessment.date} assessment={assessment} uid={uid} />}
           {section.key === "obligaciones" && <Obligations key={assessment.id ?? assessment.date} assessment={assessment} uid={uid} recommendations={evaluation.taxRecommendations} />}
           {section.key === "reportes" && <Reports context={assessment.context} evaluation={evaluation} demo={assessment.demo} />}
           {section.key === "crea-ia" && <Assistant key={assessment.id ?? assessment.date} context={assessment.context} evaluation={evaluation} />}

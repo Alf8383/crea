@@ -4,11 +4,12 @@ import "@fontsource-variable/newsreader/wght.css";
 import { SessionProvider } from "@/features/auth/session";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { AssistantProvider } from "@/features/assistant/cloud";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "CREA · Orientación tributaria para restaurantes", template: "%s · CREA" },
-  description: "Evalúa el régimen tributario de tu restaurante en Cajamarca y consulta las reglas y obligaciones de SUNAT.",
+  title: { default: "CREA · Orientación para negocios gastronómicos", template: "%s · CREA" },
+  description: "Evalúa tu negocio gastronómico en Cajamarca, proyecta tus ventas y organiza tu formalización.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -16,9 +17,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="es-PE" data-scroll-behavior="smooth">
       <body>
         <SessionProvider>
-          <SiteHeader />
-          <main id="contenido" tabIndex={-1}>{children}</main>
-          <SiteFooter />
+          <AssistantProvider>
+            <SiteHeader />
+            <main id="contenido" tabIndex={-1}>{children}</main>
+            <SiteFooter />
+          </AssistantProvider>
         </SessionProvider>
       </body>
     </html>

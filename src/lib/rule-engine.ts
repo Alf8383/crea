@@ -5,6 +5,7 @@ import {
   sourceById,
   taxRuleById,
 } from "./seed-catalog";
+import { isCiiuCode } from "./ciiu-catalog";
 import type {
   AppliedRequirement,
   BusinessContext,
@@ -242,9 +243,12 @@ export class RuleEngine {
     const hasAnswer = (key: string) =>
       !answers || Boolean(String(answers[key] ?? "").trim());
 
-    const strict = context.assessmentVersion === 2;
-    const monthlyRev = strict ? context.maxMonthlyRevenue : context.monthlyRevenue;
-    const exactSales = strict ? context.annualRevenue !== undefined : (
+    const modern = context.assessmentVersion === 3;
+    const strict = context.assessmentVersion !== undefined;
+    const salesKnown = !modern || context.financialOrigins?.sales === "real" || context.financialOrigins?.sales === "proyectado";
+    const purchasesKnown = !modern || context.financialOrigins?.purchases === "real" || context.financialOrigins?.purchases === "proyectado";
+    const monthlyRev = salesKnown ? strict ? context.maxMonthlyRevenue : context.monthlyRevenue : undefined;
+    const exactSales = strict ? salesKnown && context.annualRevenue !== undefined : (
       monthlyRev !== undefined &&
       monthlyRev > 0 &&
       (!answers ||
@@ -258,14 +262,16 @@ export class RuleEngine {
     const isRestaurantActivity =
       VALID_RESTAURANT_ACTIVITIES.includes(activityId) &&
       VALID_RESTAURANT_SECTORS.includes(sectorId);
-    const activityKnown = Boolean(context.activityId || context.ciiu);
+    const activityKnown = modern
+      ? isCiiuCode(context.ciiuClassification?.primary) && context.ciiuClassification?.primary === context.ciiu
+      : Boolean(context.activityId || context.ciiu);
 
     const annualIncome =
       context.annualRevenue !== undefined && (strict || context.annualRevenue > 0)
         ? context.annualRevenue
         : (monthlyRev ?? 0) * 12;
 
-    const monthlyPurch = strict ? context.maxMonthlyPurchases : (
+    const monthlyPurch = strict ? purchasesKnown ? context.maxMonthlyPurchases : undefined : (
       context.monthlyPurchases ??
       (context.monthlyPurchasesWithInvoice !== undefined
         ? context.monthlyPurchasesWithInvoice +
@@ -278,7 +284,7 @@ export class RuleEngine {
         ? context.annualPurchases
         : (monthlyPurch ?? 0) * 12;
 
-    const purchasesProvided = strict ? context.annualPurchases !== undefined : (
+    const purchasesProvided = strict ? purchasesKnown && context.annualPurchases !== undefined : (
       monthlyPurch !== undefined &&
       hasAnswer("TAX_PURCHASES") &&
       (monthlyPurch >= 0 || annualPurchases >= 0)
@@ -307,7 +313,7 @@ export class RuleEngine {
     const emitsFactura =
       needsInvoiceVal === true ||
       Boolean(context.emittedReceipts?.includes("FACTURA")) ||
-      context.customerType === "empresas";
+      (!modern && context.customerType === "empresas");
 
     const resolveVerification = (
       regimeSourceId: string
@@ -378,7 +384,7 @@ export class RuleEngine {
         failedRules: failures,
         missingFields: allMissing,
         sourceId: regimeSourceId,
-        ruleVersion: 3,
+        ruleVersion: 4,
         effectiveFrom: "2026-01-01",
         lastVerifiedAt: "2026-10-15",
         verification,
@@ -386,7 +392,7 @@ export class RuleEngine {
     };
 
     const nonRestaurantFailure: TaxRuleEvaluationItem[] =
-      context.activityId && !isRestaurantActivity
+      !modern && context.activityId && !isRestaurantActivity
         ? [
             buildRuleItem(
               "TR-NRUS-01",
@@ -397,22 +403,35 @@ export class RuleEngine {
         : [];
 
     const commonMissing: string[] = [];
-    if (!activityKnown && !context.otherActivity?.trim()) {
-      commonMissing.push(
-        "Selecciona la actividad económica de tu restaurante (CIIU 5610 / 5621)."
-      );
+    if (!activityKnown && (modern || !context.otherActivity?.trim())) {
+      commonMissing.push("Confirma la actividad económica del negocio en el catálogo CIIU.");
     }
 
+    const nrusAnnual = modern ? salesKnown ? context.grossAnnualRevenue : undefined : annualIncome;
     const nrusIncomeBreached =
-      ((!strict || context.annualRevenue !== undefined) && annualIncome > NRUS_ANNUAL_LIMIT) ||
+      ((!strict || (modern ? nrusAnnual !== undefined : exactSales)) && (nrusAnnual ?? 0) > NRUS_ANNUAL_LIMIT) ||
       (monthlyRev ?? 0) > NRUS_MONTHLY_LIMIT_CAT2;
+    const nrusAnnualPurchases = modern ? purchasesKnown ? context.grossAnnualPurchases : undefined : annualPurchases;
     const nrusPurchasesBreached =
-      ((!strict || context.annualPurchases !== undefined) && annualPurchases > NRUS_ANNUAL_LIMIT) ||
+      ((!strict || (modern ? nrusAnnualPurchases !== undefined : purchasesProvided)) && (nrusAnnualPurchases ?? 0) > NRUS_ANNUAL_LIMIT) ||
       (monthlyPurch ?? 0) > NRUS_MONTHLY_LIMIT_CAT2;
-    const nrusSalesKnown = exactSales && (!strict || monthlyRev !== undefined);
-    const nrusPurchasesKnown = purchasesProvided && (!strict || monthlyPurch !== undefined);
+    const nrusSalesKnown = (modern ? nrusAnnual !== undefined : exactSales) && (!strict || monthlyRev !== undefined);
+    const nrusPurchasesKnown = (modern ? nrusAnnualPurchases !== undefined : purchasesProvided) && (!strict || monthlyPurch !== undefined);
     const rmtExcluded = context.hasCorporateLinkageOverLimit === true || context.isForeignBranch === true;
     const rmtExclusionsKnown = !strict || (context.hasCorporateLinkageOverLimit === false && context.isForeignBranch === false);
+
+    function exclusionRule(id: string, answer: boolean | undefined, label: string) {
+      return buildRuleItem(id, answer === undefined ? null : !answer, answer === true
+        ? "Declaraste realizar una actividad excluida del " + label + "."
+        : answer === false ? "No declaraste actividades excluidas del " + label + "."
+          : "Falta confirmar si realizas actividades excluidas del " + label + ".");
+    }
+
+    function domicileRule(id: string) {
+      return buildRuleItem(id, context.domiciledInPeru ?? null, context.domiciledInPeru === true
+        ? "Declaraste domicilio tributario en Perú." : context.domiciledInPeru === false
+          ? "Este régimen exige domicilio tributario en Perú." : "Falta confirmar el domicilio tributario en Perú.");
+    }
 
     // 1. NUEVO RUS (NRUS)
     const nrusRules: TaxRuleEvaluationItem[] = [
@@ -470,6 +489,8 @@ export class RuleEngine {
       ),
     ];
 
+    if (modern) nrusRules.push(exclusionRule("TR-NRUS-07", context.nrusExcluded, "Nuevo RUS"), domicileRule("TR-NRUS-08"));
+
     // 2. RÉGIMEN ESPECIAL (RER)
     const rerRules: TaxRuleEvaluationItem[] = [
       ...nonRestaurantFailure,
@@ -515,6 +536,8 @@ export class RuleEngine {
       ),
     ];
 
+    if (modern) rerRules.push(exclusionRule("TR-RER-05", context.rerExcluded, "RER"), domicileRule("TR-RER-06"));
+
     // 3. RÉGIMEN MYPE TRIBUTARIO (RMT)
     const rmtRules: TaxRuleEvaluationItem[] = [
       ...nonRestaurantFailure,
@@ -537,13 +560,24 @@ export class RuleEngine {
       ),
     ];
 
+    if (modern) {
+      rmtRules.push(domicileRule("TR-RMT-04"));
+      if (context.stage === "operando" || context.stage === "formalizado") {
+        const prior = context.rmtPriorYearOverLimit;
+        rmtRules.push(buildRuleItem("TR-RMT-03", prior === undefined ? null : !prior,
+          prior === true ? "Los ingresos netos del ejercicio anterior superaron 1 700 UIT."
+            : prior === false ? "El ejercicio anterior no superó las 1 700 UIT o el negocio inició en este ejercicio."
+              : "Falta confirmar si el ejercicio anterior superó las 1 700 UIT."));
+      }
+    }
+
     // 4. RÉGIMEN GENERAL (RG)
     const rgRules: TaxRuleEvaluationItem[] = [
       ...nonRestaurantFailure,
       buildRuleItem(
         "TR-RG-01",
-        !exactSales ? null : true,
-        !exactSales
+        modern || exactSales ? true : null,
+        !modern && !exactSales
           ? "Falta registrar las ventas estimadas del restaurante."
           : "Cumple: El Régimen General no tiene límites de ingresos, compras, activos fijos, locales ni trabajadores."
       ),

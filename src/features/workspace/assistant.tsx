@@ -52,7 +52,7 @@ export function Assistant({ context, evaluation }: { context: BusinessContext; e
 
   return <div className="grid gap-6">
     <div className="grid gap-4">
-      <p className="text-muted-foreground">El asistente consulta el diagnóstico y un catálogo de orientación. Escribe tu duda sin contraseñas ni datos identificables.</p>
+      <p className="text-muted-foreground">Esta sección explica tu diagnóstico con reglas y documentos seleccionados de SUNAT. Escribe tu duda sin contraseñas ni datos identificables.</p>
       <form onSubmit={submit} className="grid gap-3">
         <Field id="crea-query" label="Tu pregunta">
           <textarea id="crea-query" className={inputClassName} rows={3} maxLength={400} value={query} onChange={(event) => setQuery(event.target.value)} />

@@ -1,3 +1,4 @@
+import { CIIU_VERSION } from "./ciiu-catalog";
 import type { BusinessContext } from "./types";
 
 export type DemoPreset = {
@@ -19,7 +20,6 @@ export const DEMO_PRESETS: DemoPreset[] = [
     targetRegime: "NRUS",
     context: {
       businessName: "Restaurante Tradicional El Cumbe",
-      ruc: "10428519302",
       currentRegime: "NRUS",
       ciiu: "5610",
       restaurantSpecialty: "RESTAURANTE_MENU",
@@ -66,10 +66,9 @@ export const DEMO_PRESETS: DemoPreset[] = [
       foreignSourceIncome: false,
       collectsPersonalData: false,
       dataOrigins: {
-        ruc: "VERIFICADO_FUENTE_OFICIAL",
-        currentRegime: "VERIFICADO_FUENTE_OFICIAL",
-        personType: "VERIFICADO_FUENTE_OFICIAL",
-        ciiu: "VERIFICADO_FUENTE_OFICIAL",
+        currentRegime: "DECLARADO_USUARIO",
+        personType: "DECLARADO_USUARIO",
+        ciiu: "DECLARADO_USUARIO",
         monthlyRevenue: "DECLARADO_USUARIO",
         monthlyPurchases: "DECLARADO_USUARIO",
         fixedAssetsValue: "DECLARADO_USUARIO",
@@ -111,7 +110,6 @@ export const DEMO_PRESETS: DemoPreset[] = [
     targetRegime: "RER",
     context: {
       businessName: "Pollería y Parrillas Los Manantiales",
-      ruc: "10451982341",
       currentRegime: "RER",
       ciiu: "5610",
       restaurantSpecialty: "POLLERIA_PARRILLERIA",
@@ -158,10 +156,9 @@ export const DEMO_PRESETS: DemoPreset[] = [
       foreignSourceIncome: false,
       collectsPersonalData: false,
       dataOrigins: {
-        ruc: "VERIFICADO_FUENTE_OFICIAL",
-        currentRegime: "VERIFICADO_FUENTE_OFICIAL",
-        personType: "VERIFICADO_FUENTE_OFICIAL",
-        ciiu: "VERIFICADO_FUENTE_OFICIAL",
+        currentRegime: "DECLARADO_USUARIO",
+        personType: "DECLARADO_USUARIO",
+        ciiu: "DECLARADO_USUARIO",
         monthlyRevenue: "DECLARADO_USUARIO",
         monthlyPurchases: "DECLARADO_USUARIO",
         fixedAssetsValue: "DECLARADO_USUARIO",
@@ -203,7 +200,6 @@ export const DEMO_PRESETS: DemoPreset[] = [
     targetRegime: "RMT",
     context: {
       businessName: "Gastronomía Cajamarquina & Sabores S.A.C.",
-      ruc: "20608419257",
       currentRegime: "RMT",
       ciiu: "5610",
       restaurantSpecialty: "PICANTERIA_TRADICIONAL",
@@ -250,10 +246,9 @@ export const DEMO_PRESETS: DemoPreset[] = [
       foreignSourceIncome: false,
       collectsPersonalData: false,
       dataOrigins: {
-        ruc: "VERIFICADO_FUENTE_OFICIAL",
-        currentRegime: "VERIFICADO_FUENTE_OFICIAL",
-        personType: "VERIFICADO_FUENTE_OFICIAL",
-        ciiu: "VERIFICADO_FUENTE_OFICIAL",
+        currentRegime: "DECLARADO_USUARIO",
+        personType: "DECLARADO_USUARIO",
+        ciiu: "DECLARADO_USUARIO",
         monthlyRevenue: "DECLARADO_USUARIO",
         monthlyPurchases: "DECLARADO_USUARIO",
         fixedAssetsValue: "DECLARADO_USUARIO",
@@ -295,7 +290,6 @@ export const DEMO_PRESETS: DemoPreset[] = [
     targetRegime: "RER",
     context: {
       businessName: "Restaurante & Menú Ejecutivo Santa Apolonia",
-      ruc: "10419283746",
       currentRegime: "NRUS",
       ciiu: "5610",
       restaurantSpecialty: "RESTAURANTE_MENU",
@@ -342,10 +336,9 @@ export const DEMO_PRESETS: DemoPreset[] = [
       foreignSourceIncome: false,
       collectsPersonalData: false,
       dataOrigins: {
-        ruc: "VERIFICADO_FUENTE_OFICIAL",
-        currentRegime: "VERIFICADO_FUENTE_OFICIAL",
-        personType: "VERIFICADO_FUENTE_OFICIAL",
-        ciiu: "VERIFICADO_FUENTE_OFICIAL",
+        currentRegime: "DECLARADO_USUARIO",
+        personType: "DECLARADO_USUARIO",
+        ciiu: "DECLARADO_USUARIO",
         monthlyRevenue: "DECLARADO_USUARIO",
         monthlyPurchases: "DECLARADO_USUARIO",
         fixedAssetsValue: "DECLARADO_USUARIO",
@@ -379,3 +372,48 @@ export const DEMO_PRESETS: DemoPreset[] = [
     },
   },
 ];
+
+for (const { context } of DEMO_PRESETS) {
+  context.stage = "formalizado";
+  context.hasRuc = true;
+  context.operationMode = "local";
+}
+
+const restaurant = DEMO_PRESETS[0].context;
+DEMO_PRESETS.push({
+  id: "cafeteria-en-preparacion",
+  badge: "Simulación · Proyección",
+  shortTitle: "Cafetería en preparación",
+  summary: "Una cafetería de jugos y café estima sus ventas y está buscando un local en Los Baños del Inca.",
+  targetRegime: "NRUS",
+  context: {
+    ...restaurant, assessmentVersion: 3, stage: "preparacion", purpose: "crear", hasRuc: undefined,
+    businessName: "Cafetería Valle Claro", district: "Los Baños del Inca", currentRegime: "SIN_REGIMEN",
+    ciiu: "5630", activityId: "5630", otherActivity: "Prepara y sirve bebidas como actividad principal.",
+    restaurantSpecialty: "5630",
+    ciiuClassification: { version: CIIU_VERSION, primary: "5630", secondary: [] },
+    financialOrigins: { sales: "proyectado", purchases: "proyectado" },
+    domiciledInPeru: true, rmtPriorYearOverLimit: false, grossAnnualPurchases: 26400,
+    grossAnnualRevenue: 54000, maxMonthlyRevenue: 4500, maxMonthlyPurchases: 2200,
+    nrusExcluded: false, rerExcluded: false, emittedReceipts: undefined, questionnaire: undefined, dataOrigins: undefined,
+  },
+});
+DEMO_PRESETS.push({
+  id: "servicio-eventos",
+  badge: "Simulación · Catering",
+  shortTitle: "Catering para eventos",
+  summary: "Un servicio de comida atiende celebraciones por encargo en Jaén y prevé emitir facturas.",
+  targetRegime: "RER",
+  context: {
+    ...restaurant, assessmentVersion: 3, stage: "operando", purpose: "formalizar", hasRuc: false,
+    businessName: "Mesa de Fiesta", province: "Jaén", district: "Jaén", currentRegime: "SIN_REGIMEN",
+    ciiu: "5621", activityId: "5621", otherActivity: "Suministro de comidas para celebraciones puntuales.",
+    restaurantSpecialty: "5621", operationMode: "eventos", servesPublic: false,
+    ciiuClassification: { version: CIIU_VERSION, primary: "5621", secondary: [] },
+    financialOrigins: { sales: "proyectado", purchases: "proyectado" },
+    domiciledInPeru: true, rmtPriorYearOverLimit: false, grossAnnualPurchases: 26400,
+    grossAnnualRevenue: 54000, maxMonthlyRevenue: 4500, maxMonthlyPurchases: 2200,
+    nrusExcluded: false, rerExcluded: false, needsInvoices: true, needsFacturas: true, emittedReceipts: undefined,
+    questionnaire: undefined, dataOrigins: undefined,
+  },
+});

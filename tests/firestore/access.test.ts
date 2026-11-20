@@ -42,7 +42,7 @@ function submit(db: Firestore, code: string, stage: "pretest" | "postest", overr
 beforeAll(async () => {
   environment = await initializeTestEnvironment({
     projectId: "demo-crea",
-    firestore: { host: "127.0.0.1", port: 8080, rules: readFileSync("firestore.rules", "utf8") },
+    firestore: { host: "127.0.0.1", port: Number(process.env.FIRESTORE_EMULATOR_HOST?.split(":").at(-1) ?? 8080), rules: readFileSync("firestore.rules", "utf8") },
   });
   await environment.clearFirestore();
 });

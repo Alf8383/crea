@@ -50,6 +50,10 @@ export interface CustomSimulationInputs {
   fiscalCreditFromInvoices?: number;
 }
 
+export function salesWithoutIgv(grossSales: number, rate: number) {
+  return Number((grossSales / (1 + rate)).toFixed(2));
+}
+
 export function simulateRestaurantTaxes(
   context: BusinessContext,
   custom?: CustomSimulationInputs
@@ -57,7 +61,7 @@ export function simulateRestaurantTaxes(
   const grossSales =
     custom?.grossMonthlySales ??
     context.monthlyRevenue ??
-    (context.assessmentVersion !== 2 && context.annualRevenue !== undefined ? context.annualRevenue / 12 : 0);
+    (context.assessmentVersion === undefined && context.annualRevenue !== undefined ? context.annualRevenue / 12 : 0);
 
   const grossPurchasesWithInvoice =
     custom?.grossMonthlyPurchasesWithInvoice ??
@@ -81,9 +85,9 @@ export function simulateRestaurantTaxes(
   const hasEnoughSalesData =
     custom?.grossMonthlySales !== undefined ||
     context.monthlyRevenue !== undefined ||
-    (context.assessmentVersion !== 2 && context.annualRevenue !== undefined);
+    (context.assessmentVersion === undefined && context.annualRevenue !== undefined);
 
-  const netSales = Number((grossSales / (1 + igvRate)).toFixed(2));
+  const netSales = salesWithoutIgv(grossSales, igvRate);
   const igvSales = Number((grossSales - netSales).toFixed(2));
 
   const igvCredit = custom?.fiscalCreditFromInvoices ?? Number(

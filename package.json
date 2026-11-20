@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "assistant": "node --env-file-if-exists=.env.local server/assistant.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:assistant": "node --test tests/assistant/server.test.mjs",
     "test:rules": "vitest run --config vitest.rules.config.mts",
     "test:e2e": "playwright test",
     "test:e2e:firebase": "playwright test --config playwright.firebase.config.ts"

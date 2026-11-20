@@ -6,7 +6,8 @@ import {
 } from "@ui-sdk/react/autocomplete";
 import { ArrowRight, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, type KeyboardEvent } from "react";
 import { inputClassName } from "@/components/ui/input";
 import { SourceLink } from "@/components/ui/primitives";
 import { practicalGuides } from "@/lib/practical-guides";
@@ -22,6 +23,7 @@ function openProcedure(id: string) {
 }
 
 export function Guides() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const term = searchText(query);
@@ -33,6 +35,18 @@ export function Guides() {
     { label: "Guías paso a paso", items: procedures.map(([id, guide]) => ({ title: guide.title, href: "#guia-" + id })) },
   ];
 
+  function openHighlighted(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing || !open) return;
+    const active = event.currentTarget.getAttribute("aria-activedescendant");
+    const href = active && document.getElementById(active)?.getAttribute("href");
+    if (!href || !groups.some(({ items }) => items.some((item) => item.href === href))) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(false);
+    if (href.startsWith("#")) openProcedure(href.slice(1));
+    else router.push(href);
+  }
+
   return <div className="grid gap-6">
     <div className="max-w-xl">
       <Autocomplete
@@ -41,13 +55,14 @@ export function Guides() {
         open={open && Boolean(term) && count > 0}
         onOpenChange={setOpen}
         openOnFocus
+        autoHighlight
         filter={false}
       >
         <div className="grid gap-2">
           <AutocompleteLabel className="font-semibold">Buscar en las guías</AutocompleteLabel>
           <div className="relative">
             <Search size={18} aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground" />
-            <AutocompleteInput type="search" placeholder="RUC, facturas, planilla…" className={inputClassName + " pr-12 pl-10 [&::-webkit-search-cancel-button]:hidden"} />
+            <AutocompleteInput type="search" onKeyDownCapture={openHighlighted} placeholder="RUC, facturas, planilla…" className={inputClassName + " pr-12 pl-10 [&::-webkit-search-cancel-button]:hidden"} />
             <AutocompleteClear aria-label="Limpiar búsqueda" className="absolute inset-y-0 right-0.5 grid w-11 place-items-center rounded-md text-muted-foreground hover:bg-muted">
               <X size={17} aria-hidden="true" />
             </AutocompleteClear>

@@ -37,7 +37,7 @@ export interface CreaIaMetrics {
   citationsCount: number;
   clarityScore: number; // 1 a 5 (basado en estructura coloquial + pasos accionables + respaldo oficial)
   hasSufficientInformation: boolean;
-  providerUsed: "SERVER_LLM_RAG" | "LOCAL_GROUNDED_RAG";
+  providerUsed: "LOCAL_GROUNDED_RAG";
 }
 
 export interface CreaIaResponse {
@@ -339,7 +339,7 @@ export async function askCreaIa(
     : "para tu restaurante";
 
   const answerParts: string[] = [];
-  let colloquialParts: string[] = [];
+  const colloquialParts: string[] = [];
   let nextSteps: string[] = [];
 
   if (lacksDiagnosticData && (qNorm.includes("mi diagnostico") || qNorm.includes("cual me conviene") || qNorm.includes("compatible"))) {
@@ -425,33 +425,6 @@ export async function askCreaIa(
     ];
   }
 
-  // Intentar enriquecimiento opcional vía endpoint del servidor si está configurado (API Key solo en servidor)
-  let providerUsed: "SERVER_LLM_RAG" | "LOCAL_GROUNDED_RAG" = "LOCAL_GROUNDED_RAG";
-  const serverEndpoint = process.env.NEXT_PUBLIC_CREA_IA_ENDPOINT;
-
-  if (serverEndpoint && typeof window !== "undefined") {
-    try {
-      const res = await fetch(serverEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: sanitized,
-          ruleEngineSummary: answerParts.join("\n"),
-          citations,
-        }),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { colloquialExplanation?: string };
-        if (data.colloquialExplanation) {
-          colloquialParts = [data.colloquialExplanation];
-          providerUsed = "SERVER_LLM_RAG";
-        }
-      }
-    } catch {
-      // Fallback seguro al motor RAG determinístico local sin interrumpir al usuario
-    }
-  }
-
   const metrics: CreaIaMetrics = {
     queryId: `CIA-${Date.now()}`,
     timestamp: new Date().toISOString(),
@@ -461,7 +434,7 @@ export async function askCreaIa(
     citationsCount: citations.length,
     clarityScore: colloquialParts.length > 0 && nextSteps.length > 0 ? 5 : 4,
     hasSufficientInformation: !lacksDiagnosticData,
-    providerUsed,
+    providerUsed: "LOCAL_GROUNDED_RAG",
   };
 
   queryMetricsLog.push(metrics);

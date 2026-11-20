@@ -6,5 +6,5 @@ export function generateStaticParams() {
 }
 
 export default function RoutePage() {
-  return <Suspense fallback={<div className="container-site page-shell"><p role="status">Cargando tu espacio…</p></div>}><Workspace /></Suspense>;
+  return <Suspense fallback={<div className="container-site page-shell"><p role="status">Cargando tu espacio…</p></div>}><Workspace initialSection="ruta" /></Suspense>;
 }

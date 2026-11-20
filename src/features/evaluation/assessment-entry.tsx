@@ -23,6 +23,6 @@ export function AssessmentEntry({ className }: { className?: string }) {
   const active = useActiveAssessment();
   const unfinished = useUnfinishedAssessment();
   return <LinkButton href={active && !unfinished ? "/negocios?seccion=diagnostico" : "/negocios/nuevo"} size="lg" className={className}>
-    {unfinished ? "Continuar mi evaluación" : active ? "Volver a mi diagnóstico" : "Evaluar mi restaurante"} <ArrowRight aria-hidden="true" />
+    {unfinished ? "Continuar mi evaluación" : active ? "Volver a mi diagnóstico" : "Evaluar mi negocio"} <ArrowRight aria-hidden="true" />
   </LinkButton>;
 }

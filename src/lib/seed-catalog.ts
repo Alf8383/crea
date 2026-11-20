@@ -9,7 +9,7 @@ import type {
 } from "./types";
 import { UIT_SOURCE_URL, IGV_RESTAURANT_SOURCE_URL } from "./tax-constants";
 
-export const CATALOG_VERSION = "2026.3-RESTAURANTES-CAJ";
+export const CATALOG_VERSION = "2026.4-GASTRONOMIA-CAJ";
 
 const verifiedTaxSource = {
   reviewedAt: "2026-10-15",
@@ -217,12 +217,30 @@ export const activities: BusinessActivity[] = [
   {
     id: "catering",
     sectorId: "restaurantes",
-    name: "Concesionario de alimentos / Atención por encargo",
+    name: "Suministro de comidas para eventos",
     ciiu: "5621",
   },
 ];
 
 const rawTaxRules = [
+  { id: "TR-NRUS-08", regime: "NRUS" as const, name: "Domicilio tributario en Perú",
+    conditionDescription: "El contribuyente debe estar domiciliado en el país.",
+    legalBasis: "D. Leg. N.° 937, art. 2", sourceId: "sunat-nrus" },
+  { id: "TR-RER-06", regime: "RER" as const, name: "Domicilio tributario en Perú",
+    conditionDescription: "El contribuyente debe estar domiciliado en el país.",
+    legalBasis: "TUO de la Ley del Impuesto a la Renta, art. 117", sourceId: "sunat-rer" },
+  { id: "TR-RMT-03", regime: "RMT" as const, name: "Ingresos netos del ejercicio anterior",
+    conditionDescription: "Los ingresos netos del ejercicio anterior no deben superar 1 700 UIT.",
+    legalBasis: "D. Leg. N.° 1269, art. 3, inc. c", sourceId: "sunat-rmt" },
+  { id: "TR-RMT-04", regime: "RMT" as const, name: "Domicilio tributario en Perú",
+    conditionDescription: "El contribuyente debe estar domiciliado en el país.",
+    legalBasis: "D. Leg. N.° 1269, art. 1", sourceId: "sunat-rmt" },
+  { id: "TR-NRUS-07", regime: "NRUS" as const, name: "Actividades excluidas del Nuevo RUS",
+    conditionDescription: "El contribuyente no realiza las actividades excluidas del Nuevo RUS.",
+    legalBasis: "D. Leg. N.° 937, art. 3", sourceId: "sunat-nrus" },
+  { id: "TR-RER-05", regime: "RER" as const, name: "Actividades excluidas del RER",
+    conditionDescription: "El contribuyente no realiza las actividades excluidas del Régimen Especial.",
+    legalBasis: "TUO de la Ley del Impuesto a la Renta, art. 118", sourceId: "sunat-rer" },
   {
     id: "TR-NRUS-01",
     regime: "NRUS" as const,
@@ -346,7 +364,7 @@ export const taxRules: TaxRuleDetail[] = rawTaxRules.map((item) => ({
   ...item,
   title: item.name,
   description: item.conditionDescription,
-  version: "2026.3",
+  version: "2026.4",
   effectiveFrom: "2026-01-01",
   effectiveDate: "2026-01-01",
   lastVerifiedAt: "2026-10-15",

@@ -23,7 +23,7 @@ const sample = {
 
 let local: RulesTestEnvironment;
 test.beforeAll(async () => {
-  local = await initializeTestEnvironment({ projectId: project, firestore: { host: "127.0.0.1", port: 8080 } });
+  local = await initializeTestEnvironment({ projectId: project, firestore: { host: "127.0.0.1", port: Number(process.env.FIRESTORE_EMULATOR_HOST?.split(":").at(-1) ?? 8080) } });
   await local.clearFirestore();
 });
 test.afterAll(async () => {
@@ -52,6 +52,16 @@ async function auth(page: Page, email: string, register = false) {
   await expect(page.getByRole("button", { name: "Salir" })).toBeVisible();
 }
 
+async function expectRestrictedAssistant(page: Page) {
+  const cloud = page.getByRole("button", { name: "CREA IA, asistente de orientación" });
+  await cloud.click();
+  const panel = page.getByRole("dialog", { name: "CREA IA" });
+  await expect(panel.getByText(/La asistencia está deshabilitada/)).toBeVisible();
+  await expect(panel.getByRole("textbox")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(cloud).toBeFocused();
+}
+
 async function answerQuiz(page: Page, title: "Pretest" | "Postest") {
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   for (let block = 0; block < 3; block++) {
@@ -74,11 +84,11 @@ test("registro, persistencia, administración y estudio completo en Firebase Emu
   await expect(page.getByRole("banner").getByRole("link", { name: "Ingresar", exact: true })).toBeVisible();
 
   await page.goto("/negocios/nuevo");
-  await page.getByRole("radio", { name: /Restaurante, cafetería/ }).check();
-  await page.getByRole("radio", { name: /A mi nombre/ }).check();
-  await page.getByLabel("¿En qué régimen estás inscrito?").selectOption("NRUS");
-  await page.getByRole("group", { name: "¿Emites o necesitas emitir facturas de venta?" }).getByRole("radio", { name: "No", exact: true }).check();
-  for (let step = 0; step < 3; step++) await page.getByRole("button", { name: "Continuar" }).click();
+  const { fillProfile, fillOrigins } = await import("../helpers/assessment");
+  await fillProfile(page);
+  await page.getByRole("button", { name: "Continuar" }).click();
+  await fillOrigins(page, "Todavía no tengo cifras", "Todavía no tengo cifras");
+  for (let step = 0; step < 2; step++) await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByLabel("Nombre del restaurante (opcional)").fill("Ficha sintética de prueba");
   await page.getByRole("button", { name: "Ver mi diagnóstico" }).click();
   await page.getByRole("link", { name: "Guardar en mi cuenta" }).click();
@@ -114,7 +124,7 @@ test("registro, persistencia, administración y estudio completo en Firebase Emu
   const staffContext = await browser.newContext();
   const staff = await staffContext.newPage();
   try {
-    const app = "http://127.0.0.1:3101";
+    const app = process.env.CREA_FIREBASE_E2E_URL || "http://127.0.0.1:3101";
     await staff.goto(app + "/ingresar");
     await staff.getByLabel("Correo electrónico").fill(adminEmail);
     await staff.getByLabel("Contraseña", { exact: true }).fill(samplePassword);
@@ -152,6 +162,7 @@ test("registro, persistencia, administración y estudio completo en Firebase Emu
     await page.getByRole("radio", { name: "Propietario/a", exact: true }).check();
     await page.getByRole("checkbox", { name: /Acepto participar/ }).check();
     await page.getByRole("button", { name: "Registrar consentimiento" }).click();
+    await expectRestrictedAssistant(page);
     await answerQuiz(page, "Pretest");
     await expect(page.getByRole("heading", { name: "Pretest registrado" })).toBeVisible();
 
@@ -170,6 +181,7 @@ test("registro, persistencia, administración y estudio completo en Firebase Emu
     });
 
     await page.getByRole("button", { name: "Actualizar estado" }).click();
+    await expectRestrictedAssistant(page);
     await answerQuiz(page, "Postest");
     await expect(page.getByRole("heading", { name: "Participación registrada" })).toBeVisible();
     await staff.getByRole("button", { name: "Actualizar", exact: true }).click();

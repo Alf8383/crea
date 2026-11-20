@@ -1,6 +1,7 @@
 "use client";
 
 import { Calculator } from "lucide-react";
+import { ProjectionCalculator } from "./projection-calculator";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -73,6 +74,11 @@ export function Simulation({ context, recommendations }: { context: BusinessCont
       }} />;
 
   return <div className="grid gap-6">
+    <ProjectionCalculator selectMonth onApply={(_projection, month) => {
+      setValues((previous) => ({ ...previous, grossMonthlySales: month.toFixed(2) }));
+      setFailure((previous) => ({ ...previous, grossMonthlySales: undefined }));
+      setResult(null);
+    }} />
     <Card className="p-5 sm:p-7">
       <h2 className="editorial-title">Datos de un mes</h2>
       <p className="mb-5 mt-2 text-muted-foreground">Usa un solo mes para todos los importes. Escribe 0 en los campos sin movimientos.</p>
@@ -96,7 +102,12 @@ export function Simulation({ context, recommendations }: { context: BusinessCont
     </Card>
     {result && <section aria-labelledby="simulation-results" className="grid gap-3">
       <h2 id="simulation-results" ref={resultHeading} tabIndex={-1} className="editorial-title flow-anchor">Resultados del simulador</h2>
-      <Notice>Escenario orientativo con IGV de ventas de {(result.igvRateApplied * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %. En RG y RMT por encima de 300 UIT se muestra el anticipo con 1,5 %. El coeficiente real puede elevarlo.</Notice>
+      <Card className="grid gap-3 p-4 sm:grid-cols-3">
+        <div><p className="text-sm text-muted-foreground">Ingresos cobrados</p><strong>{soles(result.inputsUsed.grossMonthlySales)}</strong></div>
+        <div><p className="text-sm text-muted-foreground">Compras y otros gastos ingresados</p><strong>{soles(result.inputsUsed.grossMonthlyPurchasesWithInvoice + result.inputsUsed.monthlyPurchasesWithoutInvoice + result.inputsUsed.monthlyOperatingExpenses)}</strong></div>
+        <div><p className="text-sm text-muted-foreground">Saldo estimado antes de impuestos</p><strong>{soles(result.inputsUsed.grossMonthlySales - result.inputsUsed.grossMonthlyPurchasesWithInvoice - result.inputsUsed.monthlyPurchasesWithoutInvoice - result.inputsUsed.monthlyOperatingExpenses)}</strong></div>
+      </Card>
+      <Notice>Escenario orientativo con IGV de ventas de {(result.igvRateApplied * 100).toLocaleString("es-PE", { maximumFractionDigits: 1 })} %. En RG y RMT por encima de 300 UIT se muestra el anticipo con 1,5 %. El coeficiente real puede elevarlo. Las cifras anuales de los detalles repiten el mes seleccionado doce veces.</Notice>
       <div className="grid gap-3 sm:grid-cols-2">
         {recommendations.map((rec) => {
           const sim = result.regimes[rec.code];

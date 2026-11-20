@@ -48,7 +48,7 @@ export function getFirebaseDb(): Firestore | null {
   if (!firebaseApp) return null;
   if (!db) {
     db = getFirestore(firebaseApp);
-    if (emulator) connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    if (emulator) connectFirestoreEmulator(db, "127.0.0.1", Number(process.env.NEXT_PUBLIC_CREA_FIRESTORE_PORT ?? 8080));
   }
   return db;
 }

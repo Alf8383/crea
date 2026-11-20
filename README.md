@@ -14,7 +14,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Abre [CREA en localhost](http://localhost:3000). El archivo de ejemplo activa el modo demostración de forma explícita. Puedes completar un formulario vacío o abrir un ejemplo identificado desde «Mi espacio». En este modo, las evaluaciones se guardan en la pestaña y el acceso a cuentas, administración e investigación queda deshabilitado.
+Abre [CREA en localhost](http://localhost:3000). El archivo de ejemplo activa el modo demostración de forma explícita. Puedes completar un formulario vacío o abrir un ejemplo identificado desde «Mi espacio». En este modo, las evaluaciones se guardan en la pestaña y el acceso a cuentas, administración e investigación queda deshabilitado. Consulta el [recorrido gastronómico por etapas](docs/gastronomia-por-etapas.md) para revisar la clasificación CIIU, la ruta de formalización y el asistente opcional.
 
 Con un proyecto Firebase de desarrollo, completa las variables web en `.env.local` y cambia `NEXT_PUBLIC_CREA_DEMO` a `false`. Habilita los proveedores correo/contraseña y Google en Firebase Authentication. Las evaluaciones guardadas con una cuenta se conservan en Firestore. Los roles se asignan mediante custom claims de Firebase Admin SDK.
 

@@ -17,8 +17,25 @@ export type RestaurantActivityCode =
   | "CAFETERIA_FUENTE_SODA"
   | "CATERING_EVENTOS";
 
+export type BusinessStage = "idea" | "preparacion" | "operando" | "formalizado";
+export type FinancialOrigin = "real" | "proyectado" | "desconocido";
+
 export type BusinessContext = {
-  assessmentVersion?: 2;
+  assessmentVersion?: 2 | 3;
+  stage?: BusinessStage;
+  financialOrigins?: { sales: FinancialOrigin; purchases: FinancialOrigin };
+  ciiuClassification?: { version: string; primary: string; secondary: string[] };
+  operationMode?: "local" | "delivery" | "eventos" | "movil" | "desconocido";
+  grossAnnualRevenue?: number;
+  grossAnnualPurchases?: number;
+  domiciledInPeru?: boolean;
+  rmtPriorYearOverLimit?: boolean;
+  hasRuc?: boolean;
+  municipalRisk?: "bajo-medio" | "alto" | "desconocido";
+  licenseStatus?: "yes" | "no" | "unknown";
+  itseStatus?: "yes" | "no" | "unknown";
+  nrusExcluded?: boolean;
+  rerExcluded?: boolean;
   maxMonthlyRevenue?: number;
   maxMonthlyPurchases?: number;
   rucLastDigit?: string;

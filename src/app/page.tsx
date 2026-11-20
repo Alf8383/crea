@@ -6,9 +6,9 @@ import { sourceById } from "@/lib/seed-catalog";
 import styles from "./home.module.css";
 
 const preparation = [
-  { label: "Régimen actual", text: "Lo encuentras en tu ficha RUC. Si tienes dudas, elige «No lo sé»." },
-  { label: "Ventas y compras", text: "Ten a mano los totales del año. Puedes dejar un monto en blanco si te falta." },
-  { label: "Datos del negocio", text: "Cómo lo registraste y si necesitas emitir facturas. CREA adapta el resto de las preguntas a tus respuestas." },
+  { label: "Actividad y etapa", text: "Piensa qué ofrecerás y cómo atenderás. Si ya operas, puedes revisar tu situación actual." },
+  { label: "Ventas y compras", text: "Usa cifras reales, calcula una proyección o indica que aún no tienes el dato." },
+  { label: "Datos del negocio", text: "Identifica el lugar donde operarás, quiénes serán tus clientes y si necesitarás emitir facturas." },
 ];
 
 export default function Home() {
@@ -18,8 +18,8 @@ export default function Home() {
     <section className={"container-site " + styles.hero} aria-labelledby="landing-title">
       <div className={styles.intro}>
         <p className={styles.kicker}>Orientación tributaria para Cajamarca</p>
-        <h1 id="landing-title">Revisa el régimen de tu restaurante</h1>
-        <p className={styles.lead}>Comprueba si tu régimen se ajusta a tu negocio y qué obligaciones debes atender ante SUNAT.</p>
+        <h1 id="landing-title">Formaliza tu negocio gastronómico</h1>
+        <p className={styles.lead}>Desde la primera idea hasta un negocio en marcha. Estima tus ventas, conoce tus opciones tributarias y organiza tus trámites en Cajamarca.</p>
 
         <div className={styles.start}>
           <AssessmentEntry className={styles.primary} />
@@ -29,6 +29,8 @@ export default function Home() {
         <nav className={styles.quickLinks} aria-label="Consultas directas">
           <Link href="/comparar">Comparar regímenes <ArrowRight aria-hidden="true" /></Link>
           <Link href="/obligaciones">Consultar obligaciones <ArrowRight aria-hidden="true" /></Link>
+          <Link href="/negocios?seccion=simulador">Proyectar ventas <ArrowRight aria-hidden="true" /></Link>
+          <Link href="/negocios?seccion=ejemplos">Probar con un ejemplo <ArrowRight aria-hidden="true" /></Link>
         </nav>
       </div>
 
